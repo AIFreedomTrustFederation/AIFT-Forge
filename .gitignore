@@ -1,34 +1,47 @@
-node_modules/
-dist/
-build/
-out/
-coverage/
-.cache/
-.vite/
+
+!.env.example
+# AIFT generated runtime state
+# Forge agent runtime
+# Forge runtime artifacts
+# Temporary Forge teaching and repair scripts
 .DS_Store
+.aift/capabilities.json
+.aift/federation-snapshot.json
+.aift/providers.json
+.aift/repos.json
+.aift/workflows.json
+.cache/
 .env
 .env.*
-!.env.example
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-apps/product-web/dist/
-apps/desktop/dist/
+.forge/*.bak
+.forge/*.corrupt-*
+.forge/*.tmp
+.forge/agent-patches/
+.forge/history/
+.forge/reviews/
+.forge/runtime/
+.vite/
+add-forge-*.sh
 apps/android/android/
 apps/android/dist/
-# Forge runtime artifacts
-.forge/history/
-.forge/runtime/
-.forge/*.corrupt-*
-.forge/*.bak
-.forge/*.tmp
-
-# Temporary Forge teaching and repair scripts
-add-forge-*.sh
+apps/desktop/dist/
+apps/product-web/dist/
+build/
+coverage/
+dist/
 fix-forge-*.sh
-teach-forge-*.sh
+node_modules/
+npm-debug.log*
+out/
+pnpm-debug.log*
 rebuild-forge-*.sh
-# Forge agent runtime
-.forge/agent-patches/
-.forge/reviews/
+registry/*.cypher
+registry/*.dot
+registry/*.graphml
+registry/*.json
+registry/*.rdf
+reports/
+teach-forge-*.sh
+var/events/
+yarn-debug.log*
+yarn-error.log*
