@@ -34,6 +34,19 @@ const DOMAIN_SHORT_LABELS = {
   future: "Seeds",
 };
 
+const EPISTEMIC_MARKS = {
+  empirical: "OBS",
+  "scientific-consensus": "SCI",
+  "active-research": "RES",
+  interpretive: "INT",
+  philosophical: "PHI",
+  doctrinal: "DOC",
+  engineering: "ENG",
+  prototype: "PRO",
+  architectural: "ARC",
+  aspirational: "ASP",
+};
+
 export function formatDomainLabel(domainId) {
   return DOMAIN_LABELS[domainId] || titleize(domainId);
 }
@@ -48,6 +61,16 @@ export function titleize(value) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+export function classToken(value) {
+  return String(value || "unknown")
+    .replace(/[^a-z0-9]+/gi, "-")
+    .toLowerCase();
+}
+
+export function epistemicMark(value) {
+  return EPISTEMIC_MARKS[value] || titleize(value).slice(0, 3).toUpperCase();
 }
 
 export function normalizeTreeManifest(manifest) {
@@ -85,6 +108,10 @@ export function normalizeTreeManifest(manifest) {
       epistemicLabel:
         epistemicClasses[node.epistemicClass]?.label ||
         titleize(node.epistemicClass),
+      epistemicDefinition:
+        epistemicClasses[node.epistemicClass]?.definition || null,
+      epistemicMark: epistemicMark(node.epistemicClass),
+      epistemicToken: classToken(node.epistemicClass),
       sourceObjects: resolveSources(node.sourceRefs, sourceRefsById),
     });
   });
@@ -106,7 +133,12 @@ export function normalizeTreeManifest(manifest) {
       epistemicLabel:
         epistemicClasses[edge.epistemicClass]?.label ||
         titleize(edge.epistemicClass),
+      epistemicDefinition:
+        epistemicClasses[edge.epistemicClass]?.definition || null,
+      epistemicMark: epistemicMark(edge.epistemicClass),
+      epistemicToken: classToken(edge.epistemicClass),
       relationLabel: titleize(edge.relation),
+      roleLabel: edge.role === "primary" ? "Primary lineage" : "Cross-link",
       sourceObjects: resolveSources(edge.sourceRefs, sourceRefsById),
     };
   });
@@ -158,6 +190,7 @@ export function normalizeTreeManifest(manifest) {
         shortLabel: formatDomainShortLabel(domainId),
         nodes,
         count: nodes.length,
+        epistemicSummary: summarizeEpistemicClasses(nodes),
         internalEdges,
         inboundEdges,
         outboundEdges,
@@ -195,38 +228,76 @@ export function createExplorerState(overrides = {}) {
     view,
     domainId: overrides.domainId || null,
     nodeId: overrides.nodeId || null,
+    edgeId: overrides.edgeId || null,
     search: overrides.search || "",
+    epistemicLens: Boolean(overrides.epistemicLens),
+    epistemicFilter: overrides.epistemicFilter || "all",
+    edgeMode: overrides.edgeMode || "all",
   };
 }
 
 export function reduceExplorerState(model, state, action) {
+  const current = createExplorerState(state);
+  const presentation = {
+    search: current.search,
+    epistemicLens: current.epistemicLens,
+    epistemicFilter: current.epistemicFilter,
+    edgeMode: current.edgeMode,
+  };
+
   switch (action.type) {
     case "whole":
-      return createExplorerState({ search: state.search });
+      return createExplorerState({ ...presentation });
     case "domain":
       return createExplorerState({
+        ...presentation,
         view: "domain",
         domainId: model.domainsById.has(action.domainId)
           ? action.domainId
-          : state.domainId,
-        search: state.search,
+          : current.domainId,
       });
     case "node": {
       const node = model.nodesById.get(action.nodeId);
       return createExplorerState({
+        ...presentation,
         view: "node",
-        nodeId: node?.id || state.nodeId,
-        domainId: node?.domain || state.domainId,
-        search: state.search,
+        nodeId: node?.id || current.nodeId,
+        domainId: node?.domain || current.domainId,
       });
     }
+    case "edge": {
+      const edge = model.edges.find(
+        (candidate) => candidate.id === action.edgeId,
+      );
+      if (!edge) return current;
+      return createExplorerState({
+        ...current,
+        edgeId: edge.id,
+        domainId: current.domainId || edge.source.domain || edge.target.domain,
+      });
+    }
+    case "toggle-lens":
+      return createExplorerState({
+        ...current,
+        epistemicLens: !current.epistemicLens,
+      });
+    case "epistemic-filter":
+      return createExplorerState({
+        ...current,
+        epistemicFilter: action.epistemicFilter || "all",
+      });
+    case "edge-mode":
+      return createExplorerState({
+        ...current,
+        edgeMode: action.edgeMode || "all",
+      });
     case "search":
       return createExplorerState({
-        ...state,
+        ...current,
         search: action.search || "",
       });
     default:
-      return state;
+      return current;
   }
 }
 
@@ -247,8 +318,27 @@ export function getNodeDetail(
     canonicalUrl: node.canonicalUri
       ? new URL(node.canonicalUri, genesisBaseUrl).href
       : null,
-    epistemicDefinition:
-      model.epistemicClasses[node.epistemicClass]?.definition || null,
+    epistemicDefinition: node.epistemicDefinition || null,
+  };
+}
+
+export function getEdgeDetail(
+  model,
+  edgeId,
+  genesisBaseUrl = DEFAULT_GENESIS_BASE_URL,
+) {
+  const edge = model.edges.find((candidate) => candidate.id === edgeId);
+  if (!edge) return null;
+  return {
+    edge,
+    source: edge.source,
+    target: edge.target,
+    sources: edge.sourceObjects,
+    sourceUrls: edge.sourceObjects.map((source) => ({
+      ...source,
+      href: new URL(source.uri || "", genesisBaseUrl).href,
+    })),
+    epistemicDefinition: edge.epistemicDefinition || null,
   };
 }
 
@@ -257,6 +347,9 @@ export function getExplorerView(model, state) {
   const search = currentState.search.trim().toLowerCase();
   const selectedNode = currentState.nodeId
     ? model.nodesById.get(currentState.nodeId)
+    : null;
+  const selectedEdge = currentState.edgeId
+    ? model.edges.find((edge) => edge.id === currentState.edgeId)
     : null;
   const selectedDomain =
     currentState.domainId || selectedNode?.domain
@@ -269,17 +362,24 @@ export function getExplorerView(model, state) {
   );
 
   if (currentState.view === "whole") {
+    const visibleEdges = filterEdgesByMode(
+      model.edges,
+      currentState.edgeMode,
+      selectedEdge?.id,
+    );
     return {
       mode: "whole",
       state: currentState,
       domains: model.domains,
-      domainEdges: summarizeDomainEdges(model.edges),
+      domainEdges: summarizeDomainEdges(visibleEdges),
       selectedDomain: null,
       selectedNode: null,
+      selectedEdge,
       visibleNodes: model.nodes.filter((node) => matchingNodeIds.has(node.id)),
-      visibleEdges: model.edges,
+      visibleEdges,
       matchingNodeIds,
       nodeDetail: null,
+      edgeDetail: selectedEdge ? getEdgeDetail(model, selectedEdge.id) : null,
     };
   }
 
@@ -293,6 +393,13 @@ export function getExplorerView(model, state) {
       visibleNodeIds.add(edge.from);
       visibleNodeIds.add(edge.to);
     });
+    const visibleEdges = filterEdgesByMode(
+      relationshipEdges.filter(
+        (edge) => visibleNodeIds.has(edge.from) && visibleNodeIds.has(edge.to),
+      ),
+      currentState.edgeMode,
+      selectedEdge?.id,
+    );
     return {
       mode: "node",
       state: currentState,
@@ -300,14 +407,14 @@ export function getExplorerView(model, state) {
       domainEdges: [],
       selectedDomain,
       selectedNode,
+      selectedEdge,
       visibleNodes: model.nodes.filter(
         (node) => visibleNodeIds.has(node.id) && matchesSearch(node, search),
       ),
-      visibleEdges: relationshipEdges.filter(
-        (edge) => visibleNodeIds.has(edge.from) && visibleNodeIds.has(edge.to),
-      ),
+      visibleEdges,
       matchingNodeIds,
       nodeDetail: getNodeDetail(model, selectedNode.id),
+      edgeDetail: selectedEdge ? getEdgeDetail(model, selectedEdge.id) : null,
     };
   }
 
@@ -321,6 +428,13 @@ export function getExplorerView(model, state) {
       visibleNodeIds.add(edge.from);
       visibleNodeIds.add(edge.to);
     });
+    const visibleEdges = filterEdgesByMode(
+      contextEdges.filter(
+        (edge) => visibleNodeIds.has(edge.from) && visibleNodeIds.has(edge.to),
+      ),
+      currentState.edgeMode,
+      selectedEdge?.id,
+    );
     return {
       mode: "domain",
       state: currentState,
@@ -328,14 +442,14 @@ export function getExplorerView(model, state) {
       domainEdges: [],
       selectedDomain,
       selectedNode: null,
+      selectedEdge,
       visibleNodes: model.nodes.filter(
         (node) => visibleNodeIds.has(node.id) && matchesSearch(node, search),
       ),
-      visibleEdges: contextEdges.filter(
-        (edge) => visibleNodeIds.has(edge.from) && visibleNodeIds.has(edge.to),
-      ),
+      visibleEdges,
       matchingNodeIds,
       nodeDetail: null,
+      edgeDetail: selectedEdge ? getEdgeDetail(model, selectedEdge.id) : null,
     };
   }
 
@@ -344,9 +458,19 @@ export function getExplorerView(model, state) {
 
 export function layoutExplorerGraph(model, state, options = {}) {
   const view = getExplorerView(model, state);
-  if (view.mode === "whole") return layoutWholeTree(view, options);
-  if (view.mode === "node") return layoutNodeRelationships(view, options);
-  return layoutDomainFocus(view, options);
+  const layout =
+    view.mode === "whole"
+      ? layoutWholeTree(view, options)
+      : view.mode === "node"
+        ? layoutNodeRelationships(view, options)
+        : layoutDomainFocus(view, options);
+  return {
+    ...layout,
+    epistemicLens: view.state.epistemicLens,
+    epistemicFilter: view.state.epistemicFilter,
+    edgeMode: view.state.edgeMode,
+    selectedEdgeId: view.selectedEdge?.id || null,
+  };
 }
 
 export async function loadTreeManifest(
@@ -423,6 +547,28 @@ export async function mountTreeExplorer(options) {
     renderMount(root, state, genesisBaseUrl, { preserveSearchFocus: true });
   });
 
+  root.addEventListener("change", (event) => {
+    if (!state.model) return;
+    const filter = event.target.closest("[data-aift-tree-epistemic-filter]");
+    if (filter) {
+      state.explorer = reduceExplorerState(state.model, state.explorer, {
+        type: "epistemic-filter",
+        epistemicFilter: filter.value,
+      });
+      renderMount(root, state, genesisBaseUrl);
+      return;
+    }
+
+    const edgeMode = event.target.closest("[data-aift-tree-edge-mode]");
+    if (edgeMode) {
+      state.explorer = reduceExplorerState(state.model, state.explorer, {
+        type: "edge-mode",
+        edgeMode: edgeMode.value,
+      });
+      renderMount(root, state, genesisBaseUrl);
+    }
+  });
+
   return {
     get model() {
       return state.model;
@@ -443,7 +589,6 @@ export async function mountTreeExplorer(options) {
 
 function renderMount(root, state, genesisBaseUrl, renderOptions = {}) {
   const doc = root.ownerDocument;
-  const activeSearch = state.explorer.search;
   root.replaceChildren();
   root.classList.add("aift-tree-explorer");
 
@@ -467,7 +612,7 @@ function renderMount(root, state, genesisBaseUrl, renderOptions = {}) {
   const view = getExplorerView(state.model, state.explorer);
   const shell = doc.createElement("div");
   shell.className = "aift-tree-explorer__shell";
-  shell.append(renderToolbar(doc, state.model, view, activeSearch));
+  shell.append(renderToolbar(doc, state.model, view));
 
   const body = doc.createElement("div");
   body.className = "aift-tree-explorer__body";
@@ -485,7 +630,7 @@ function renderMount(root, state, genesisBaseUrl, renderOptions = {}) {
   }
 }
 
-function renderToolbar(doc, model, view, search) {
+function renderToolbar(doc, model, view) {
   const toolbar = doc.createElement("div");
   toolbar.className = "aift-tree-explorer__toolbar";
 
@@ -511,13 +656,54 @@ function renderToolbar(doc, model, view, search) {
   });
   toolbar.append(domainRail);
 
+  const lensPanel = doc.createElement("div");
+  lensPanel.className = "aift-tree-explorer__lens-panel";
+
+  const lens = doc.createElement("button");
+  lens.type = "button";
+  lens.className = buttonClass(view.state.epistemicLens);
+  lens.dataset.aiftTreeAction = "toggle-lens";
+  lens.setAttribute("aria-pressed", String(view.state.epistemicLens));
+  lens.textContent = view.state.epistemicLens ? "Lens On" : "Lens Off";
+  lensPanel.append(lens);
+
+  const filterLabel = doc.createElement("label");
+  filterLabel.className = "aift-tree-explorer__select";
+  const filterText = doc.createElement("span");
+  filterText.textContent = "Epistemic";
+  const filterSelect = doc.createElement("select");
+  filterSelect.dataset.aiftTreeEpistemicFilter = "true";
+  filterSelect.append(selectOption(doc, "all", "All classes"));
+  Object.entries(model.epistemicClasses).forEach(([id, value]) => {
+    filterSelect.append(selectOption(doc, id, value.label || titleize(id)));
+  });
+  filterSelect.value = view.state.epistemicFilter;
+  filterLabel.append(filterText, filterSelect);
+  lensPanel.append(filterLabel);
+
+  const edgeLabel = doc.createElement("label");
+  edgeLabel.className = "aift-tree-explorer__select";
+  const edgeText = doc.createElement("span");
+  edgeText.textContent = "Edges";
+  const edgeSelect = doc.createElement("select");
+  edgeSelect.dataset.aiftTreeEdgeMode = "true";
+  edgeSelect.append(
+    selectOption(doc, "all", "All edges"),
+    selectOption(doc, "primary", "Primary lineage"),
+    selectOption(doc, "cross-link", "Cross-links"),
+  );
+  edgeSelect.value = view.state.edgeMode;
+  edgeLabel.append(edgeText, edgeSelect);
+  lensPanel.append(edgeLabel);
+  toolbar.append(lensPanel);
+
   const searchLabel = doc.createElement("label");
   searchLabel.className = "aift-tree-explorer__search";
   const searchText = doc.createElement("span");
   searchText.textContent = "Search";
   const searchInput = doc.createElement("input");
   searchInput.type = "search";
-  searchInput.value = search;
+  searchInput.value = view.state.search;
   searchInput.autocomplete = "off";
   searchInput.dataset.aiftTreeSearch = "true";
   searchLabel.append(searchText, searchInput);
@@ -551,10 +737,7 @@ function renderGraph(doc, model, state) {
   const edgeLayer = doc.createElementNS(SVG_NS, "g");
   edgeLayer.classList.add("aift-tree-explorer__edge-layer");
   layout.edges.forEach((edge) => {
-    const path = doc.createElementNS(SVG_NS, "path");
-    path.setAttribute("d", edge.path);
-    path.classList.add("aift-tree-explorer__edge", `is-${edge.role || "edge"}`);
-    edgeLayer.append(path);
+    edgeLayer.append(renderGraphEdge(doc, edge, layout));
   });
   svg.append(edgeLayer);
 
@@ -562,10 +745,12 @@ function renderGraph(doc, model, state) {
   nodeLayer.classList.add("aift-tree-explorer__node-layer");
   if (layout.mode === "whole") {
     layout.domains.forEach((domain) =>
-      nodeLayer.append(renderDomainNode(doc, domain)),
+      nodeLayer.append(renderDomainNode(doc, domain, layout)),
     );
   } else {
-    layout.nodes.forEach((node) => nodeLayer.append(renderTreeNode(doc, node)));
+    layout.nodes.forEach((node) =>
+      nodeLayer.append(renderTreeNode(doc, node, layout)),
+    );
   }
   svg.append(nodeLayer);
 
@@ -573,15 +758,80 @@ function renderGraph(doc, model, state) {
   return figure;
 }
 
-function renderDomainNode(doc, domain) {
+function renderGraphEdge(doc, edge, layout) {
+  const canonical = Boolean(edge.source && edge.target);
   const group = doc.createElementNS(SVG_NS, "g");
-  group.classList.add("aift-tree-explorer__domain-node");
+  group.classList.add(
+    "aift-tree-explorer__edge-group",
+    `is-${edge.role || "edge"}`,
+    `is-epistemic-${edge.epistemicToken || classToken(edge.epistemicClass)}`,
+    edge.id === layout.selectedEdgeId ? "is-selected" : "is-unselected",
+    isEdgeDimmed(edge, layout.epistemicFilter) ? "is-dimmed" : "is-visible",
+  );
+  group.setAttribute("role", canonical ? "button" : "img");
+  group.setAttribute("aria-label", graphEdgeLabel(edge));
+
+  if (canonical) {
+    group.setAttribute("tabindex", "0");
+    group.dataset.aiftTreeAction = "edge";
+    group.dataset.edgeId = edge.id;
+
+    const hit = doc.createElementNS(SVG_NS, "path");
+    hit.setAttribute("d", edge.path);
+    hit.classList.add("aift-tree-explorer__edge-hit");
+    group.append(hit);
+  }
+
+  const path = doc.createElementNS(SVG_NS, "path");
+  path.setAttribute("d", edge.path);
+  path.classList.add("aift-tree-explorer__edge", `is-${edge.role || "edge"}`);
+  group.append(path);
+
+  if (layout.epistemicLens && edge.midpoint) {
+    const label = doc.createElementNS(SVG_NS, "text");
+    label.classList.add("aift-tree-explorer__edge-label");
+    label.setAttribute("x", String(edge.midpoint.x));
+    label.setAttribute("y", String(edge.midpoint.y - 8));
+    label.setAttribute("text-anchor", "middle");
+    label.textContent = canonical
+      ? `${edge.relationLabel} · ${edge.epistemicMark}`
+      : summarizeEdgeLens(edge);
+    group.append(label);
+  }
+
+  return group;
+}
+
+function graphEdgeLabel(edge) {
+  if (edge.source && edge.target) {
+    return `${edge.source.label} ${edge.relationLabel} ${edge.target.label}. ${edge.roleLabel}. ${edge.epistemicLabel}.`;
+  }
+
+  const role = edge.role === "primary" ? "Primary lineage" : "Cross-link";
+  const epistemic = edge.epistemicSummary?.length
+    ? edge.epistemicSummary
+        .map((entry) => `${entry.label} (${entry.count})`)
+        .join(", ")
+    : "mixed epistemic classes";
+  return `${formatDomainLabel(edge.from)} to ${formatDomainLabel(
+    edge.to,
+  )}. ${role}. ${edge.count} relationships. Epistemic classes: ${epistemic}.`;
+}
+
+function renderDomainNode(doc, domain, layout) {
+  const group = doc.createElementNS(SVG_NS, "g");
+  group.classList.add(
+    "aift-tree-explorer__domain-node",
+    isDomainDimmed(domain, layout.epistemicFilter) ? "is-dimmed" : "is-visible",
+  );
   group.setAttribute("transform", `translate(${domain.x} ${domain.y})`);
   group.setAttribute("role", "button");
   group.setAttribute("tabindex", "0");
   group.setAttribute(
     "aria-label",
-    `${domain.label}, ${domain.count} Tree nodes`,
+    `${domain.label}, ${domain.count} Tree nodes. Epistemic classes: ${domain.epistemicSummary
+      .map((entry) => entry.label)
+      .join(", ")}.`,
   );
   group.dataset.aiftTreeAction = "domain";
   group.dataset.domainId = domain.id;
@@ -606,21 +856,38 @@ function renderDomainNode(doc, domain) {
   count.textContent = `${domain.count} nodes`;
 
   group.append(rect, title, count);
+
+  if (layout.epistemicLens) {
+    const lens = doc.createElementNS(SVG_NS, "text");
+    lens.classList.add("aift-tree-explorer__domain-lens");
+    lens.setAttribute("text-anchor", "middle");
+    lens.setAttribute("y", "34");
+    lens.textContent = summarizeDomainLens(domain);
+    group.append(lens);
+  }
+
   return group;
 }
 
-function renderTreeNode(doc, layoutNode) {
+function renderTreeNode(doc, layoutNode, layout) {
   const node = layoutNode.node;
   const group = doc.createElementNS(SVG_NS, "g");
   group.classList.add(
     "aift-tree-explorer__tree-node",
     layoutNode.focus ? "is-focus" : "is-context",
     layoutNode.selected ? "is-selected" : "is-unselected",
+    `is-epistemic-${node.epistemicToken}`,
+    isDimmedByEpistemicFilter(node.epistemicClass, layout.epistemicFilter)
+      ? "is-dimmed"
+      : "is-visible",
   );
   group.setAttribute("transform", `translate(${layoutNode.x} ${layoutNode.y})`);
   group.setAttribute("role", "button");
   group.setAttribute("tabindex", "0");
-  group.setAttribute("aria-label", `${node.label}, ${node.epistemicLabel}`);
+  group.setAttribute(
+    "aria-label",
+    `${node.label}. ${node.epistemicLabel}. ${node.epistemicDefinition || ""}`,
+  );
   group.dataset.aiftTreeAction = "node";
   group.dataset.nodeId = node.id;
 
@@ -644,6 +911,16 @@ function renderTreeNode(doc, layoutNode) {
   epistemic.textContent = truncate(node.epistemicLabel, 24);
 
   group.append(rect, label, epistemic);
+
+  if (layout.epistemicLens) {
+    const badge = doc.createElementNS(SVG_NS, "text");
+    badge.classList.add("aift-tree-explorer__node-badge");
+    badge.setAttribute("x", "-78");
+    badge.setAttribute("y", "-12");
+    badge.textContent = node.epistemicMark;
+    group.append(badge);
+  }
+
   return group;
 }
 
@@ -651,6 +928,11 @@ function renderDetail(doc, model, view, genesisBaseUrl) {
   const panel = doc.createElement("aside");
   panel.className = "aift-tree-explorer__detail";
   panel.setAttribute("aria-live", "polite");
+
+  if (view.edgeDetail) {
+    renderEdgeDetail(panel, doc, view.edgeDetail, genesisBaseUrl);
+    return panel;
+  }
 
   if (view.nodeDetail) {
     renderNodeDetail(panel, doc, model, view.nodeDetail, genesisBaseUrl);
@@ -691,6 +973,12 @@ function renderDomainDetail(panel, doc, domain, matchingNodeIds) {
   const metadata = detailGrid(doc, [
     ["Domain ID", domain.id],
     ["Nodes", String(domain.count)],
+    [
+      "Epistemic classes",
+      domain.epistemicSummary
+        .map((entry) => `${entry.label} (${entry.count})`)
+        .join(", "),
+    ],
     ["Internal edges", String(domain.internalEdges.length)],
     ["Incoming edges", String(domain.inboundEdges.length)],
     ["Outgoing edges", String(domain.outboundEdges.length)],
@@ -708,6 +996,62 @@ function renderDomainDetail(panel, doc, domain, matchingNodeIds) {
       list.append(button);
     });
   panel.append(heading, metadata, list);
+}
+
+function renderEdgeDetail(panel, doc, detail, genesisBaseUrl) {
+  const { edge, source, target, sources, epistemicDefinition } = detail;
+
+  const returnButton = doc.createElement("button");
+  returnButton.type = "button";
+  returnButton.className = "aift-tree-explorer__back";
+  returnButton.dataset.aiftTreeAction = "node";
+  returnButton.dataset.nodeId = source.id;
+  returnButton.textContent = source.label;
+
+  const heading = doc.createElement("h3");
+  heading.textContent = `${source.shortLabel || source.label} -> ${edge.relationLabel} -> ${target.shortLabel || target.label}`;
+
+  const description = doc.createElement("p");
+  description.className = "aift-tree-explorer__description";
+  description.textContent = edge.description || "";
+
+  const metadata = detailGrid(doc, [
+    ["Edge ID", edge.id],
+    ["Relation", edge.relationLabel],
+    ["Role", edge.roleLabel],
+    ["Epistemic class", edge.epistemicLabel],
+    ["From", source.label],
+    ["To", target.label],
+  ]);
+
+  const epistemic = doc.createElement("p");
+  epistemic.className = "aift-tree-explorer__epistemic-definition";
+  epistemic.textContent = epistemicDefinition || "";
+
+  const traversal = doc.createElement("div");
+  traversal.className = "aift-tree-explorer__traversal";
+  const sourceButton = doc.createElement("button");
+  sourceButton.type = "button";
+  sourceButton.dataset.aiftTreeAction = "node";
+  sourceButton.dataset.nodeId = source.id;
+  sourceButton.textContent = `Open ${source.label}`;
+  const targetButton = doc.createElement("button");
+  targetButton.type = "button";
+  targetButton.dataset.aiftTreeAction = "node";
+  targetButton.dataset.nodeId = target.id;
+  targetButton.textContent = `Open ${target.label}`;
+  traversal.append(sourceButton, targetButton);
+
+  const sourceList = renderSourceList(doc, sources, genesisBaseUrl);
+  panel.append(
+    returnButton,
+    heading,
+    description,
+    metadata,
+    epistemic,
+    traversal,
+    sourceList,
+  );
 }
 
 function renderNodeDetail(panel, doc, model, detail, genesisBaseUrl) {
@@ -790,9 +1134,9 @@ function relationshipGroup(doc, title, edges, endpoint, model) {
       const targetNode = endpoint(edge);
       const button = doc.createElement("button");
       button.type = "button";
-      button.dataset.aiftTreeAction = "node";
-      button.dataset.nodeId = targetNode.id;
-      button.innerHTML = `<span>${escapeHtml(targetNode.label)}</span><small>${escapeHtml(edge.relationLabel)} · ${escapeHtml(model.epistemicClasses[edge.epistemicClass]?.label || titleize(edge.epistemicClass))}</small>`;
+      button.dataset.aiftTreeAction = "edge";
+      button.dataset.edgeId = edge.id;
+      button.innerHTML = `<span>${escapeHtml(targetNode.label)}</span><small>${escapeHtml(edge.relationLabel)} · ${escapeHtml(edge.roleLabel)} · ${escapeHtml(model.epistemicClasses[edge.epistemicClass]?.label || titleize(edge.epistemicClass))}</small>`;
       list.append(button);
     });
   }
@@ -850,6 +1194,7 @@ function layoutWholeTree(view, options) {
       return {
         ...edge,
         path: curvedPath(source.x, source.y, target.x, target.y),
+        midpoint: midpoint(source.x, source.y, target.x, target.y),
       };
     })
     .filter(Boolean);
@@ -929,6 +1274,7 @@ function edgeWithPath(edge, positions) {
   return {
     ...edge,
     path: curvedPath(source.x, source.y, target.x, target.y),
+    midpoint: midpoint(source.x, source.y, target.x, target.y),
   };
 }
 
@@ -937,6 +1283,13 @@ function curvedPath(x1, y1, x2, y2) {
   const c1x = x1 + (x2 >= x1 ? dx : -dx);
   const c2x = x2 - (x2 >= x1 ? dx : -dx);
   return `M ${x1} ${y1} C ${c1x} ${y1}, ${c2x} ${y2}, ${x2} ${y2}`;
+}
+
+function midpoint(x1, y1, x2, y2) {
+  return {
+    x: (x1 + x2) / 2,
+    y: (y1 + y2) / 2,
+  };
 }
 
 function summarizeDomainEdges(edges) {
@@ -950,12 +1303,95 @@ function summarizeDomainEdges(edges) {
       to: edge.target.domain,
       role: edge.role,
       count: 0,
+      epistemicSummary: [],
     };
     existing.count += 1;
     if (edge.role === "primary") existing.role = "primary";
+    addEpistemicSummaryEntry(existing.epistemicSummary, edge);
     summaries.set(id, existing);
   });
-  return [...summaries.values()];
+  return [...summaries.values()].map((summary) => ({
+    ...summary,
+    epistemicSummary: summary.epistemicSummary.sort(
+      (a, b) => b.count - a.count || a.label.localeCompare(b.label),
+    ),
+  }));
+}
+
+function summarizeEpistemicClasses(nodes) {
+  const counts = new Map();
+  nodes.forEach((node) => {
+    const key = node.epistemicClass || "unknown";
+    const existing = counts.get(key) || {
+      id: key,
+      label: node.epistemicLabel || titleize(key),
+      mark: node.epistemicMark || epistemicMark(key),
+      count: 0,
+    };
+    existing.count += 1;
+    counts.set(key, existing);
+  });
+  return [...counts.values()].sort(
+    (a, b) => b.count - a.count || a.label.localeCompare(b.label),
+  );
+}
+
+function summarizeDomainLens(domain) {
+  return domain.epistemicSummary
+    .slice(0, 2)
+    .map((entry) => `${entry.mark}:${entry.count}`)
+    .join(" ");
+}
+
+function summarizeEdgeLens(edge) {
+  if (!edge.epistemicSummary?.length) return `${edge.count || 1} links`;
+  return edge.epistemicSummary
+    .slice(0, 2)
+    .map((entry) => `${entry.mark}:${entry.count}`)
+    .join(" ");
+}
+
+function addEpistemicSummaryEntry(summary, item) {
+  const id = item.epistemicClass || "unknown";
+  const existing = summary.find((entry) => entry.id === id);
+  if (existing) {
+    existing.count += 1;
+    return;
+  }
+  summary.push({
+    id,
+    label: item.epistemicLabel || titleize(id),
+    mark: item.epistemicMark || epistemicMark(id),
+    count: 1,
+  });
+}
+
+function filterEdgesByMode(edges, edgeMode, selectedEdgeId) {
+  if (!edgeMode || edgeMode === "all") return edges;
+  return edges.filter(
+    (edge) => edge.role === edgeMode || edge.id === selectedEdgeId,
+  );
+}
+
+function isEdgeDimmed(edge, epistemicFilter) {
+  if (!epistemicFilter || epistemicFilter === "all") return false;
+  if (edge.epistemicSummary) {
+    return !edge.epistemicSummary.some((entry) => entry.id === epistemicFilter);
+  }
+  return edge.epistemicClass !== epistemicFilter;
+}
+
+function isDimmedByEpistemicFilter(epistemicClass, epistemicFilter) {
+  return Boolean(
+    epistemicFilter &&
+    epistemicFilter !== "all" &&
+    epistemicClass !== epistemicFilter,
+  );
+}
+
+function isDomainDimmed(domain, epistemicFilter) {
+  if (!epistemicFilter || epistemicFilter === "all") return false;
+  return !domain.epistemicSummary.some((entry) => entry.id === epistemicFilter);
 }
 
 function computePrimaryDepths(roots, outgoingByNode) {
@@ -1016,6 +1452,8 @@ function readAction(target) {
   if (type === "whole") return { type };
   if (type === "domain") return { type, domainId: target.dataset.domainId };
   if (type === "node") return { type, nodeId: target.dataset.nodeId };
+  if (type === "edge") return { type, edgeId: target.dataset.edgeId };
+  if (type === "toggle-lens") return { type };
   return null;
 }
 
@@ -1038,6 +1476,13 @@ function detailGrid(doc, rows) {
       grid.append(term, detail);
     });
   return grid;
+}
+
+function selectOption(doc, value, label) {
+  const option = doc.createElement("option");
+  option.value = value;
+  option.textContent = label;
+  return option;
 }
 
 function graphTitle(layout) {
