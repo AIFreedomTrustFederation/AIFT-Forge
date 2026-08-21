@@ -12,7 +12,6 @@ This is the canonical status record for AIFT Forge. It separates implemented beh
 | Local API             | Foundation             | Health, state, records, Git, token, setup, and artifact routes exist.            |
 | Persistent state      | Foundation             | JSON-backed local state helpers exist.                                           |
 | Git read operations   | Foundation             | Branch, tag, commit, tree, blob, and diff readers exist.                         |
-| Tree Explorer engine  | Foundation             | `packages/tree-explorer` loads Genesis manifests and supports Whole Tree -> Domain -> Node navigation. |
 | Smart HTTP transport  | Partial                | Token-aware access, protected-ref policy, and disposable live clone/fetch/push are covered by local smoke checks. |
 | Protected writes      | Partial                | Feature-branch push and protected-main denial are live-smoked; review-status merge policy is still pending. |
 | Desktop package       | Not built              | Electron metadata exists; installer output is not verified.                      |

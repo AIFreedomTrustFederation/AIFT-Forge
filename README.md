@@ -22,7 +22,6 @@ Use this repository when a change affects the overall operating model, agentic i
 
 - Federation doctrine and ecosystem map.
 - Workspace structure for product web, desktop, Android, API, and core packages.
-- Reusable Tree Explorer browser engine for manifest-backed Genesis graph views.
 - Verification and readiness scripts for forge structure.
 - Dependency manifest, SBOM, license, lint, test, and formatting scripts.
 - Shared coordination language for agentic infrastructure.
