@@ -8,7 +8,8 @@
     "apps/desktop",
     "apps/android",
     "apps/forge-api",
-    "packages/forge-core"
+    "packages/forge-core",
+    "packages/tree-explorer"
   ],
   "scripts": {
     "verify": "node scripts/verify-forge-structure.mjs",

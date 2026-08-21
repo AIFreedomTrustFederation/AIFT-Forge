@@ -1,0 +1,10 @@
+{
+  "name": "@aift/tree-explorer",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/tree-explorer.mjs",
+  "exports": {
+    ".": "./src/tree-explorer.mjs"
+  }
+}
