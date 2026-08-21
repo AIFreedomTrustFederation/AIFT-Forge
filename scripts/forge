@@ -1,5 +1,0 @@
-#!/data/data/com.termux/files/usr/bin/bash
-set -e
-
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-node "$ROOT/packages/forge-core/src/cli/index.mjs" "$@"

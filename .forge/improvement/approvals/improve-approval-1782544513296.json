@@ -1,9 +1,0 @@
-{
-  "schema": "aift.forge.improvement-approval.v1",
-  "id": "improve-approval-1782544513296",
-  "patchId": "patch-1782544513086",
-  "decision": "approved",
-  "reason": "Smoke test approval",
-  "createdAt": "2026-06-27T07:15:13.296Z",
-  "decidedAt": "2026-06-27T07:15:13.298Z"
-}
