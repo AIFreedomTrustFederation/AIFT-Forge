@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createExplorerState,
+  getEdgeDetail,
   getExplorerView,
   getNodeDetail,
   layoutExplorerGraph,
@@ -155,5 +156,91 @@ describe("AIFT Tree Explorer engine", () => {
     expect(
       layout.nodes.find((entry) => entry.node.id === "biological-life").focus,
     ).toBe(true);
+  });
+
+  it("summarizes whole-map aggregate edges for lens rendering", () => {
+    const model = normalizeTreeManifest(manifestFixture());
+    const layout = layoutExplorerGraph(
+      model,
+      createExplorerState({ epistemicLens: true }),
+    );
+
+    expect(layout.mode).toBe("whole");
+    expect(layout.edges).toHaveLength(2);
+    expect(layout.edges[0]).toMatchObject({
+      from: "physical",
+      to: "biological",
+      role: "primary",
+      count: 1,
+      epistemicSummary: [
+        { id: "empirical", label: "Empirical", mark: "OBS", count: 1 },
+      ],
+    });
+    expect(layout.edges[0].source).toBeUndefined();
+  });
+
+  it("keeps position while toggling the epistemic lens and filtering classes", () => {
+    const model = normalizeTreeManifest(manifestFixture());
+    const state = createExplorerState({
+      domainId: "technological",
+      nodeId: "software",
+    });
+    const lens = reduceExplorerState(model, state, { type: "toggle-lens" });
+    const filtered = reduceExplorerState(model, lens, {
+      type: "epistemic-filter",
+      epistemicFilter: "engineering",
+    });
+
+    expect(lens).toMatchObject({
+      view: "node",
+      domainId: "technological",
+      nodeId: "software",
+      epistemicLens: true,
+    });
+    expect(filtered).toMatchObject({
+      nodeId: "software",
+      epistemicLens: true,
+      epistemicFilter: "engineering",
+    });
+  });
+
+  it("focuses relationship edges before traversing to connected nodes", () => {
+    const model = normalizeTreeManifest(manifestFixture());
+    const state = createExplorerState({ nodeId: "biological-life" });
+    const edgeState = reduceExplorerState(model, state, {
+      type: "edge",
+      edgeId: "e-life-software",
+    });
+    const view = getExplorerView(model, edgeState);
+    const detail = getEdgeDetail(model, "e-life-software");
+
+    expect(edgeState).toMatchObject({
+      view: "node",
+      nodeId: "biological-life",
+      edgeId: "e-life-software",
+    });
+    expect(view.edgeDetail.edge.relationLabel).toBe("Influences");
+    expect(detail.source.id).toBe("biological-life");
+    expect(detail.target.id).toBe("software");
+    expect(detail.edge.roleLabel).toBe("Cross-link");
+  });
+
+  it("filters edge visibility by primary lineage or cross-link mode", () => {
+    const model = normalizeTreeManifest(manifestFixture());
+    const primaryState = createExplorerState({
+      domainId: "biological",
+      edgeMode: "primary",
+    });
+    const crossState = createExplorerState({
+      domainId: "biological",
+      edgeMode: "cross-link",
+    });
+
+    expect(
+      getExplorerView(model, primaryState).visibleEdges.map((edge) => edge.id),
+    ).toEqual(["e-physical-life"]);
+    expect(
+      getExplorerView(model, crossState).visibleEdges.map((edge) => edge.id),
+    ).toEqual(["e-life-software"]);
   });
 });
