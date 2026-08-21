@@ -3,6 +3,9 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 export const DEFAULT_TREE_MANIFEST_URL =
   "https://raw.githubusercontent.com/AIFreedomTrustFederation/AIFT-Genesis/main/manifests/tree.manifest.json";
 
+export const DEFAULT_ATLAS_MANIFEST_URL =
+  "https://raw.githubusercontent.com/AIFreedomTrustFederation/AIFT-Genesis/main/manifests/living-atlas.manifest.json";
+
 export const DEFAULT_GENESIS_BASE_URL =
   "https://github.com/AIFreedomTrustFederation/AIFT-Genesis/blob/main/";
 
@@ -220,6 +223,89 @@ export function normalizeTreeManifest(manifest) {
   };
 }
 
+export function normalizeAtlasManifest(manifest, treeModel = null) {
+  if (!manifest || manifest.kind !== "living-atlas-manifest") {
+    throw new Error("Expected a Genesis living-atlas-manifest object.");
+  }
+  if (!Array.isArray(manifest.entities)) {
+    throw new Error("Atlas manifest must include an entities array.");
+  }
+  if (!Array.isArray(manifest.treeMappings)) {
+    throw new Error("Atlas manifest must include a treeMappings array.");
+  }
+
+  const sourceRefsById = new Map(
+    (manifest.sourceRefs || []).map((source) => [source.id, source]),
+  );
+  const entityTypes = manifest.entityTypes || {};
+  const mappingRelations = manifest.mappingRelations || {};
+  const entitiesById = new Map();
+
+  manifest.entities.forEach((entity, index) => {
+    if (!entity.id)
+      throw new Error(`Atlas entity at index ${index} is missing an id.`);
+    if (entitiesById.has(entity.id))
+      throw new Error(`Duplicate Atlas entity id: ${entity.id}`);
+    entitiesById.set(entity.id, {
+      ...entity,
+      index,
+      typeLabel: entityTypes[entity.type]?.label || titleize(entity.type),
+      typeDefinition: entityTypes[entity.type]?.definition || null,
+      sourceObjects: resolveSources(entity.sourceRefs, sourceRefsById),
+    });
+  });
+
+  const mappings = manifest.treeMappings.map((mapping, index) => {
+    if (!mapping.id)
+      throw new Error(`Atlas mapping at index ${index} is missing an id.`);
+    const entity = entitiesById.get(mapping.atlasEntityId);
+    if (!entity) {
+      throw new Error(
+        `Atlas mapping ${mapping.id} references unknown entity: ${mapping.atlasEntityId}`,
+      );
+    }
+    if (treeModel && !treeModel.nodesById.has(mapping.treeNodeId)) {
+      throw new Error(
+        `Atlas mapping ${mapping.id} references unknown Tree node: ${mapping.treeNodeId}`,
+      );
+    }
+    return {
+      ...mapping,
+      index,
+      entity,
+      relationLabel:
+        mappingRelations[mapping.relation]?.label || titleize(mapping.relation),
+      relationDefinition:
+        mappingRelations[mapping.relation]?.definition || null,
+      sourceObjects: resolveSources(mapping.sourceRefs, sourceRefsById),
+    };
+  });
+
+  const mappingsByTreeNode = new Map();
+  mappings.forEach((mapping) => {
+    const existing = mappingsByTreeNode.get(mapping.treeNodeId) || [];
+    existing.push(mapping);
+    mappingsByTreeNode.set(mapping.treeNodeId, existing);
+  });
+
+  return {
+    manifest,
+    title: manifest.title,
+    atlasId: manifest.atlasId,
+    atlasVersion: manifest.atlasVersion,
+    status: manifest.status,
+    description: manifest.description,
+    boundaries: manifest.boundaries || {},
+    entityTypes,
+    mappingRelations,
+    sourceRefsById,
+    entities: [...entitiesById.values()],
+    entitiesById,
+    treeMappings: mappings,
+    mappingsByTreeNode,
+  };
+}
+
 export function createExplorerState(overrides = {}) {
   const view =
     overrides.view ||
@@ -229,6 +315,8 @@ export function createExplorerState(overrides = {}) {
     domainId: overrides.domainId || null,
     nodeId: overrides.nodeId || null,
     edgeId: overrides.edgeId || null,
+    atlasTreeNodeId: overrides.atlasTreeNodeId || null,
+    atlasEntityId: overrides.atlasEntityId || null,
     search: overrides.search || "",
     epistemicLens: Boolean(overrides.epistemicLens),
     epistemicFilter: overrides.epistemicFilter || "all",
@@ -273,7 +361,35 @@ export function reduceExplorerState(model, state, action) {
       return createExplorerState({
         ...current,
         edgeId: edge.id,
+        atlasTreeNodeId: null,
+        atlasEntityId: null,
         domainId: current.domainId || edge.source.domain || edge.target.domain,
+      });
+    }
+    case "atlas": {
+      const node = model.nodesById.get(action.treeNodeId || current.nodeId);
+      if (!node) return current;
+      return createExplorerState({
+        ...current,
+        view: "node",
+        domainId: node.domain,
+        nodeId: node.id,
+        edgeId: null,
+        atlasTreeNodeId: node.id,
+        atlasEntityId: null,
+      });
+    }
+    case "atlas-entity": {
+      const node = model.nodesById.get(action.treeNodeId || current.nodeId);
+      if (!node) return current;
+      return createExplorerState({
+        ...current,
+        view: "node",
+        domainId: node.domain,
+        nodeId: node.id,
+        edgeId: null,
+        atlasTreeNodeId: node.id,
+        atlasEntityId: action.atlasEntityId || null,
       });
     }
     case "toggle-lens":
@@ -342,7 +458,32 @@ export function getEdgeDetail(
   };
 }
 
-export function getExplorerView(model, state) {
+export function getAtlasForTreeNode(
+  atlasModel,
+  treeNodeId,
+  atlasEntityId = null,
+) {
+  if (!atlasModel || !treeNodeId) return null;
+  const mappings = [...(atlasModel.mappingsByTreeNode.get(treeNodeId) || [])];
+  const selectedEntity =
+    atlasEntityId &&
+    mappings.some((mapping) => mapping.entity.id === atlasEntityId)
+      ? atlasModel.entitiesById.get(atlasEntityId)
+      : mappings[0]?.entity || null;
+  return {
+    atlas: atlasModel,
+    treeNodeId,
+    mappings,
+    entities: mappings.map((mapping) => mapping.entity),
+    selectedEntity,
+    selectedMapping:
+      mappings.find((mapping) => mapping.entity.id === selectedEntity?.id) ||
+      null,
+    count: mappings.length,
+  };
+}
+
+export function getExplorerView(model, state, atlasModel = null) {
   const currentState = createExplorerState(state);
   const search = currentState.search.trim().toLowerCase();
   const selectedNode = currentState.nodeId
@@ -360,6 +501,18 @@ export function getExplorerView(model, state) {
       .filter((node) => matchesSearch(node, search))
       .map((node) => node.id),
   );
+  const selectedAtlasTreeNodeId =
+    currentState.atlasTreeNodeId || selectedNode?.id;
+  const nodeAtlasSummary = selectedNode
+    ? getAtlasForTreeNode(atlasModel, selectedNode.id)
+    : null;
+  const atlasDetail = currentState.atlasTreeNodeId
+    ? getAtlasForTreeNode(
+        atlasModel,
+        selectedAtlasTreeNodeId,
+        currentState.atlasEntityId,
+      )
+    : null;
 
   if (currentState.view === "whole") {
     const visibleEdges = filterEdgesByMode(
@@ -380,6 +533,8 @@ export function getExplorerView(model, state) {
       matchingNodeIds,
       nodeDetail: null,
       edgeDetail: selectedEdge ? getEdgeDetail(model, selectedEdge.id) : null,
+      nodeAtlasSummary: null,
+      atlasDetail: null,
     };
   }
 
@@ -415,6 +570,8 @@ export function getExplorerView(model, state) {
       matchingNodeIds,
       nodeDetail: getNodeDetail(model, selectedNode.id),
       edgeDetail: selectedEdge ? getEdgeDetail(model, selectedEdge.id) : null,
+      nodeAtlasSummary,
+      atlasDetail,
     };
   }
 
@@ -450,10 +607,12 @@ export function getExplorerView(model, state) {
       matchingNodeIds,
       nodeDetail: null,
       edgeDetail: selectedEdge ? getEdgeDetail(model, selectedEdge.id) : null,
+      nodeAtlasSummary: null,
+      atlasDetail: null,
     };
   }
 
-  return getExplorerView(model, createExplorerState());
+  return getExplorerView(model, createExplorerState(), atlasModel);
 }
 
 export function layoutExplorerGraph(model, state, options = {}) {
@@ -485,14 +644,32 @@ export async function loadTreeManifest(
   return response.json();
 }
 
+export async function loadAtlasManifest(
+  url = DEFAULT_ATLAS_MANIFEST_URL,
+  fetcher = globalThis.fetch,
+) {
+  if (typeof fetcher !== "function")
+    throw new Error("A fetch-compatible function is required.");
+  const response = await fetcher(url);
+  if (!response.ok)
+    throw new Error(`Atlas manifest request failed: ${response.status}`);
+  return response.json();
+}
+
 export async function mountTreeExplorer(options) {
   const root = options?.root;
   if (!root) throw new Error("mountTreeExplorer requires a root element.");
   const fetcher = options.fetcher || globalThis.fetch;
   const manifestUrl = options.manifestUrl || DEFAULT_TREE_MANIFEST_URL;
+  const atlasManifestUrl =
+    options.atlasManifestUrl === false
+      ? null
+      : options.atlasManifestUrl || DEFAULT_ATLAS_MANIFEST_URL;
   const genesisBaseUrl = options.genesisBaseUrl || DEFAULT_GENESIS_BASE_URL;
   const state = {
     model: null,
+    atlas: null,
+    atlasError: null,
     explorer: createExplorerState(options.initialState || {}),
     error: null,
     loading: true,
@@ -501,12 +678,24 @@ export async function mountTreeExplorer(options) {
   renderMount(root, state, genesisBaseUrl);
 
   try {
-    const manifest = await loadTreeManifest(manifestUrl, fetcher);
+    const [manifest, atlasManifest] = await Promise.all([
+      loadTreeManifest(manifestUrl, fetcher),
+      atlasManifestUrl
+        ? loadAtlasManifest(atlasManifestUrl, fetcher).catch((error) => {
+            state.atlasError = error;
+            return null;
+          })
+        : Promise.resolve(null),
+    ]);
     state.model = normalizeTreeManifest(manifest);
+    if (atlasManifest) {
+      state.atlas = normalizeAtlasManifest(atlasManifest, state.model);
+    }
     state.loading = false;
     state.explorer = createExplorerState(options.initialState || {});
     renderMount(root, state, genesisBaseUrl);
-    if (typeof options.onReady === "function") options.onReady(state.model);
+    if (typeof options.onReady === "function")
+      options.onReady(state.model, state.atlas);
   } catch (error) {
     state.loading = false;
     state.error = error;
@@ -573,6 +762,9 @@ export async function mountTreeExplorer(options) {
     get model() {
       return state.model;
     },
+    get atlas() {
+      return state.atlas;
+    },
     get state() {
       return state.explorer;
     },
@@ -609,7 +801,7 @@ function renderMount(root, state, genesisBaseUrl, renderOptions = {}) {
     return;
   }
 
-  const view = getExplorerView(state.model, state.explorer);
+  const view = getExplorerView(state.model, state.explorer, state.atlas);
   const shell = doc.createElement("div");
   shell.className = "aift-tree-explorer__shell";
   shell.append(renderToolbar(doc, state.model, view));
@@ -929,13 +1121,25 @@ function renderDetail(doc, model, view, genesisBaseUrl) {
   panel.className = "aift-tree-explorer__detail";
   panel.setAttribute("aria-live", "polite");
 
+  if (view.atlasDetail) {
+    renderAtlasDetail(panel, doc, model, view.atlasDetail, genesisBaseUrl);
+    return panel;
+  }
+
   if (view.edgeDetail) {
     renderEdgeDetail(panel, doc, view.edgeDetail, genesisBaseUrl);
     return panel;
   }
 
   if (view.nodeDetail) {
-    renderNodeDetail(panel, doc, model, view.nodeDetail, genesisBaseUrl);
+    renderNodeDetail(
+      panel,
+      doc,
+      model,
+      view.nodeDetail,
+      genesisBaseUrl,
+      view.nodeAtlasSummary,
+    );
     return panel;
   }
 
@@ -1054,7 +1258,137 @@ function renderEdgeDetail(panel, doc, detail, genesisBaseUrl) {
   );
 }
 
-function renderNodeDetail(panel, doc, model, detail, genesisBaseUrl) {
+function renderAtlasDetail(panel, doc, model, detail, genesisBaseUrl) {
+  const treeNode = model.nodesById.get(detail.treeNodeId);
+  const returnButton = doc.createElement("button");
+  returnButton.type = "button";
+  returnButton.className = "aift-tree-explorer__back";
+  returnButton.dataset.aiftTreeAction = "node";
+  returnButton.dataset.nodeId = detail.treeNodeId;
+  returnButton.textContent = treeNode
+    ? `Return to ${treeNode.label}`
+    : "Return to Tree";
+
+  const breadcrumb = doc.createElement("p");
+  breadcrumb.className = "aift-tree-explorer__breadcrumb";
+  const breadcrumbParts = treeNode
+    ? [
+        "Tree",
+        ...(treeNode.domainLabel && treeNode.domainLabel !== treeNode.label
+          ? [treeNode.domainLabel]
+          : []),
+        treeNode.label,
+        "Living Atlas",
+      ]
+    : ["Tree", "Living Atlas"];
+  breadcrumb.textContent = breadcrumbParts.join(" -> ");
+
+  const heading = doc.createElement("h3");
+  heading.textContent = `Living Atlas · ${detail.count} related manifestation${
+    detail.count === 1 ? "" : "s"
+  }`;
+
+  const description = doc.createElement("p");
+  description.className = "aift-tree-explorer__description";
+  description.textContent =
+    detail.atlas.description ||
+    "Public Atlas entities explicitly mapped to this canonical Tree node.";
+
+  const metadata = detailGrid(doc, [
+    ["Atlas ID", detail.atlas.atlasId],
+    ["Tree node", detail.treeNodeId],
+    ["Atlas status", detail.atlas.status],
+    ["Mapped entities", String(detail.count)],
+  ]);
+
+  const list = doc.createElement("div");
+  list.className = "aift-tree-explorer__atlas-list";
+  if (detail.mappings.length === 0) {
+    const empty = doc.createElement("p");
+    empty.textContent =
+      "No public Atlas manifestations are mapped to this Tree node yet.";
+    list.append(empty);
+  } else {
+    detail.mappings.forEach((mapping) => {
+      const button = doc.createElement("button");
+      button.type = "button";
+      button.dataset.aiftTreeAction = "atlas-entity";
+      button.dataset.treeNodeId = detail.treeNodeId;
+      button.dataset.atlasEntityId = mapping.entity.id;
+      if (mapping.entity.id === detail.selectedEntity?.id) {
+        button.className = "is-active";
+      }
+      button.innerHTML = `<span>${escapeHtml(mapping.entity.label)}</span><small>${escapeHtml(mapping.relationLabel)} · ${escapeHtml(mapping.entity.typeLabel)} · ${escapeHtml(mapping.entity.status)}</small>`;
+      list.append(button);
+    });
+  }
+
+  panel.append(returnButton, breadcrumb, heading, description, metadata, list);
+
+  if (detail.selectedEntity && detail.selectedMapping) {
+    renderAtlasEntityDetail(
+      panel,
+      doc,
+      detail.selectedEntity,
+      detail.selectedMapping,
+      genesisBaseUrl,
+    );
+  }
+}
+
+function renderAtlasEntityDetail(panel, doc, entity, mapping, genesisBaseUrl) {
+  const section = doc.createElement("section");
+  section.className = "aift-tree-explorer__atlas-entity";
+
+  const heading = doc.createElement("h4");
+  heading.textContent = entity.label;
+
+  const description = doc.createElement("p");
+  description.className = "aift-tree-explorer__description";
+  description.textContent = entity.description || "";
+
+  const metadata = detailGrid(doc, [
+    ["Atlas entity ID", entity.id],
+    ["Entity type", entity.typeLabel],
+    ["Atlas relation", mapping.relationLabel],
+    ["Entity status", entity.status],
+    ["Evidence", entity.evidenceStatus],
+    ["Visibility", entity.visibility],
+  ]);
+
+  const boundary = doc.createElement("p");
+  boundary.className = "aift-tree-explorer__epistemic-definition";
+  boundary.textContent =
+    entity.metadata?.claimBoundary ||
+    mapping.description ||
+    "Atlas entity status is evidence-backed but does not redefine the Tree node.";
+
+  const links = doc.createElement("div");
+  links.className = "aift-tree-explorer__links";
+  (entity.links || []).forEach((entry) => {
+    const link = doc.createElement("a");
+    link.href = entry.uri;
+    link.textContent = entry.label || entry.uri;
+    links.append(link);
+  });
+
+  const sourceList = renderSourceList(
+    doc,
+    dedupeSources([...mapping.sourceObjects, ...entity.sourceObjects]),
+    genesisBaseUrl,
+  );
+  section.append(heading, description, metadata, boundary, links, sourceList);
+  panel.append(section);
+}
+
+function renderNodeDetail(
+  panel,
+  doc,
+  model,
+  detail,
+  genesisBaseUrl,
+  atlasSummary = null,
+) {
   const {
     node,
     incoming,
@@ -1096,6 +1430,7 @@ function renderNodeDetail(panel, doc, model, detail, genesisBaseUrl) {
     relationshipGroup(doc, "Outgoing", outgoing, (edge) => edge.target, model),
   );
 
+  const atlasBridge = renderAtlasBridge(doc, node, atlasSummary);
   const sourceList = renderSourceList(doc, sources, genesisBaseUrl);
   const links = doc.createElement("div");
   links.className = "aift-tree-explorer__links";
@@ -1112,10 +1447,36 @@ function renderNodeDetail(panel, doc, model, detail, genesisBaseUrl) {
     description,
     metadata,
     epistemic,
+    atlasBridge,
     relationships,
     sourceList,
     links,
   );
+}
+
+function renderAtlasBridge(doc, node, atlasSummary) {
+  const section = doc.createElement("section");
+  section.className = "aift-tree-explorer__atlas-bridge";
+  const heading = doc.createElement("h4");
+  heading.textContent = "Living Atlas";
+
+  if (!atlasSummary || atlasSummary.count === 0) {
+    const empty = doc.createElement("p");
+    empty.textContent =
+      "No public Atlas manifestations are mapped to this Tree node yet.";
+    section.append(heading, empty);
+    return section;
+  }
+
+  const button = doc.createElement("button");
+  button.type = "button";
+  button.dataset.aiftTreeAction = "atlas";
+  button.dataset.treeNodeId = node.id;
+  button.innerHTML = `<span>Living Atlas · ${atlasSummary.count} related manifestation${
+    atlasSummary.count === 1 ? "" : "s"
+  }</span><small>Open instantiated Federation records for ${escapeHtml(node.label)}</small>`;
+  section.append(heading, button);
+  return section;
 }
 
 function relationshipGroup(doc, title, edges, endpoint, model) {
@@ -1423,6 +1784,16 @@ function resolveSources(sourceIds = [], sourceRefsById) {
   return sourceIds.map((id) => sourceRefsById.get(id)).filter(Boolean);
 }
 
+function dedupeSources(sources) {
+  const seen = new Set();
+  return sources.filter((source) => {
+    const key = source.id || source.uri || source.label;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function matchesSearch(node, search) {
   if (!search) return true;
   return [
@@ -1453,6 +1824,13 @@ function readAction(target) {
   if (type === "domain") return { type, domainId: target.dataset.domainId };
   if (type === "node") return { type, nodeId: target.dataset.nodeId };
   if (type === "edge") return { type, edgeId: target.dataset.edgeId };
+  if (type === "atlas") return { type, treeNodeId: target.dataset.treeNodeId };
+  if (type === "atlas-entity")
+    return {
+      type,
+      treeNodeId: target.dataset.treeNodeId,
+      atlasEntityId: target.dataset.atlasEntityId,
+    };
   if (type === "toggle-lens") return { type };
   return null;
 }

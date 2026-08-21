@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   createExplorerState,
   getEdgeDetail,
+  getAtlasForTreeNode,
   getExplorerView,
   getNodeDetail,
   layoutExplorerGraph,
+  normalizeAtlasManifest,
   normalizeTreeManifest,
   reduceExplorerState,
 } from "../packages/tree-explorer/src/tree-explorer.mjs";
@@ -81,6 +83,100 @@ function manifestFixture() {
         epistemicClass: "engineering",
         role: "cross-link",
         sourceRefs: [],
+      },
+    ],
+  };
+}
+
+function atlasManifestFixture() {
+  return {
+    kind: "living-atlas-manifest",
+    atlasId: "aift-living-atlas",
+    atlasVersion: "0.1.0",
+    title: "AIFT Living Atlas",
+    status: "canonical-draft",
+    description: "Public Atlas fixture.",
+    entityTypes: {
+      repository: {
+        label: "Repository",
+        definition: "Public source repository.",
+      },
+      publication: {
+        label: "Publication",
+        definition: "Public document.",
+      },
+    },
+    mappingRelations: {
+      implements: {
+        label: "Implements",
+        definition: "Implements a Tree concept.",
+      },
+      documents: {
+        label: "Documents",
+        definition: "Documents a Tree concept.",
+      },
+    },
+    sourceRefs: [
+      {
+        id: "forge.readme",
+        label: "Forge README",
+        uri: "https://example.test/forge",
+      },
+    ],
+    entities: [
+      {
+        id: "repo-aift-forge",
+        type: "repository",
+        label: "AIFT-Forge",
+        description: "Reusable engine repository.",
+        status: "active-foundation",
+        visibility: "public",
+        evidenceStatus: "public-repository",
+        sourceRefs: ["forge.readme"],
+        links: [
+          {
+            label: "Repository",
+            uri: "https://example.test/forge",
+            type: "repository",
+          },
+        ],
+        tags: ["forge"],
+        metadata: {
+          claimBoundary: "Fixture repository.",
+        },
+      },
+      {
+        id: "publication-software-note",
+        type: "publication",
+        label: "Software Note",
+        description: "Public software note.",
+        status: "documented",
+        visibility: "public",
+        evidenceStatus: "public-document",
+        sourceRefs: ["forge.readme"],
+        links: [],
+        tags: ["software"],
+        metadata: {},
+      },
+    ],
+    treeMappings: [
+      {
+        id: "map-forge-software",
+        treeNodeId: "software",
+        atlasEntityId: "repo-aift-forge",
+        relation: "implements",
+        status: "active",
+        description: "Forge implements reusable software patterns.",
+        sourceRefs: ["forge.readme"],
+      },
+      {
+        id: "map-note-software",
+        treeNodeId: "software",
+        atlasEntityId: "publication-software-note",
+        relation: "documents",
+        status: "active",
+        description: "The note documents software.",
+        sourceRefs: ["forge.readme"],
       },
     ],
   };
@@ -242,5 +338,50 @@ describe("AIFT Tree Explorer engine", () => {
     expect(
       getExplorerView(model, crossState).visibleEdges.map((edge) => edge.id),
     ).toEqual(["e-life-software"]);
+  });
+
+  it("normalizes Atlas entities and resolves explicit Tree mappings", () => {
+    const tree = normalizeTreeManifest(manifestFixture());
+    const atlas = normalizeAtlasManifest(atlasManifestFixture(), tree);
+    const softwareAtlas = getAtlasForTreeNode(atlas, "software");
+
+    expect(atlas.entities).toHaveLength(2);
+    expect(softwareAtlas.count).toBe(2);
+    expect(
+      softwareAtlas.mappings.map((mapping) => mapping.relationLabel),
+    ).toEqual(["Implements", "Documents"]);
+    expect(softwareAtlas.entities.map((entity) => entity.id)).toEqual([
+      "repo-aift-forge",
+      "publication-software-note",
+    ]);
+  });
+
+  it("opens an Atlas panel without losing the selected Tree node", () => {
+    const tree = normalizeTreeManifest(manifestFixture());
+    const atlas = normalizeAtlasManifest(atlasManifestFixture(), tree);
+    const nodeState = createExplorerState({ nodeId: "software" });
+    const atlasState = reduceExplorerState(tree, nodeState, {
+      type: "atlas",
+      treeNodeId: "software",
+    });
+    const entityState = reduceExplorerState(tree, atlasState, {
+      type: "atlas-entity",
+      treeNodeId: "software",
+      atlasEntityId: "publication-software-note",
+    });
+    const view = getExplorerView(tree, entityState, atlas);
+
+    expect(entityState).toMatchObject({
+      view: "node",
+      nodeId: "software",
+      domainId: "technological",
+      atlasTreeNodeId: "software",
+      atlasEntityId: "publication-software-note",
+    });
+    expect(view.nodeDetail.node.id).toBe("software");
+    expect(view.atlasDetail.count).toBe(2);
+    expect(view.atlasDetail.selectedEntity.id).toBe(
+      "publication-software-note",
+    );
   });
 });
