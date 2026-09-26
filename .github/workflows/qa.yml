@@ -42,6 +42,10 @@
         {
           "name": "Run local QA gate",
           "run": "npm run qa:local"
+        },
+        {
+          "name": "Verify clean checkout",
+          "run": "test -z \"$(git status --porcelain)\""
         }
       ]
     }
