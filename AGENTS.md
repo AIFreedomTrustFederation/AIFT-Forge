@@ -106,14 +106,28 @@ No AI agent may silently authorize money, custody, secrets, deployment, registry
 
 ## Validation
 
-For documentation-only changes:
+Run the same locked, dependency-safe gate used by hosted CI for every change:
 
-- verify Markdown renders reasonably
-- preserve existing doctrine
-- avoid unsupported claims
-- cite or link to source repos when appropriate
+```sh
+npm ci --ignore-scripts
+npm run qa:local
+git diff --check
+```
 
-For code-bearing repos, use that repo's `AGENTS.md`, README, scripts, and validation commands.
+`qa:local` runs lint, the Android/Termux type-check profile, tests, and the
+Android/Termux build profile. Do not replace the locked install with `npm
+install`, and do not enable dependency lifecycle scripts merely to validate a
+change.
+
+Before concluding work on a clean committed tree, also prove that verification
+is non-mutating:
+
+```sh
+test -z "$(git status --porcelain)"
+```
+
+While preparing a commit, use `git status --short` and confirm that only the
+intended files are changed.
 
 ## Handoff Protocol
 
