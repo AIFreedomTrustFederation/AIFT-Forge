@@ -36,8 +36,12 @@
           }
         },
         {
+          "name": "Verify inert install policy",
+          "run": "test \"$(npm config get ignore-scripts)\" = \"true\""
+        },
+        {
           "name": "Install locked dependencies",
-          "run": "npm ci --ignore-scripts"
+          "run": "npm ci"
         },
         {
           "name": "Run local QA gate",
