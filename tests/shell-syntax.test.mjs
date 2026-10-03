@@ -18,6 +18,7 @@ describe("shell source integrity", () => {
     const shellFiles = new Set([
       ...trackedFiles(["ls-files", "-z", "*.sh"]),
       ...trackedFiles(["grep", "-Ilz", "^#!.*bash", "--"]),
+      ...trackedFiles(["grep", "-Ilz", "^#!.*[/ ]sh$", "--"]),
     ]);
 
     expect(shellFiles.size).toBeGreaterThan(0);
