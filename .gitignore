@@ -1,5 +1,4 @@
 
-!.env.example
 # AIFT generated runtime state
 # Forge agent runtime
 # Forge runtime artifacts
@@ -13,6 +12,7 @@
 .cache/
 .env
 .env.*
+!.env.example
 .forge/*.bak
 .forge/*.corrupt-*
 .forge/*.tmp

@@ -26,4 +26,22 @@ describe("repository hygiene", () => {
 
     expect(ignored.status).toBe(0);
   });
+
+  it("ignores private environment files but preserves the safe template", () => {
+    for (const file of [".env", ".env.local"]) {
+      const ignored = spawnSync(
+        "git",
+        ["check-ignore", "--quiet", "--no-index", file],
+        { cwd: repoRoot },
+      );
+      expect(ignored.status, `${file} must remain ignored`).toBe(0);
+    }
+
+    const template = spawnSync(
+      "git",
+      ["check-ignore", "--quiet", "--no-index", ".env.example"],
+      { cwd: repoRoot },
+    );
+    expect(template.status, ".env.example must remain trackable").toBe(1);
+  });
 });
