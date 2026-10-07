@@ -15,7 +15,7 @@
     "isomorphic-git": "latest",
     "kysely": "latest",
     "prom-client": "latest",
-    "simple-git": "latest",
+    "simple-git": "4.0.1",
     "yjs": "latest",
     "zod": "latest"
   },

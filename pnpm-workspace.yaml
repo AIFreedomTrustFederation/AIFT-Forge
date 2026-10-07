@@ -1,6 +1,8 @@
 packages:
   - "apps/*"
   - "packages/*"
+overrides:
+  '@simple-git/argv-parser': 2.0.1
 allowBuilds:
   electron-winstaller: true
   esbuild: true
