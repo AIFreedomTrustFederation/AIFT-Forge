@@ -14,9 +14,9 @@
     "apk:collect": "node scripts/collect-apk.mjs"
   },
   "dependencies": {
-    "@capacitor/android": "latest",
+    "@capacitor/android": "8.4.3",
     "@capacitor/app": "latest",
-    "@capacitor/core": "latest",
+    "@capacitor/core": "8.4.3",
     "@capacitor/device": "latest",
     "@capacitor/filesystem": "latest",
     "@capacitor/network": "latest",
@@ -25,7 +25,7 @@
     "typescript": "latest"
   },
   "devDependencies": {
-    "@capacitor/cli": "latest"
+    "@capacitor/cli": "8.4.3"
   },
   "aiftDesktopDependencies": {}
 }
