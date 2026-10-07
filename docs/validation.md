@@ -16,7 +16,7 @@ This gate runs structure/dependency checks, unit tests, lint, Git access smoke c
 
 | Command                        | Purpose                                                                   | Required for                             |
 | ------------------------------ | ------------------------------------------------------------------------- | ---------------------------------------- |
-| `npm install`                  | Install the declared workspace dependency graph from `package-lock.json`. | Any full local verification.             |
+| `npm ci --ignore-scripts`     | Reproduce the locked dependency graph without lifecycle scripts.          | Any full local verification.             |
 | `npm run deps:manifest`        | Generate `dist/aift-forge-dependencies.json`.                             | Dependency inventory and package review. |
 | `npm run verify`               | Verify required files, workspaces, scripts, and policy labels.            | Structure readiness.                     |
 | `npm run readiness`            | Generate `dist/aift-forge-readiness.json`.                                | Readiness reporting.                     |
