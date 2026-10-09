@@ -8,12 +8,12 @@ This is the canonical status record for AIFT Forge. It separates implemented beh
 | --------------------- | ---------------------- | -------------------------------------------------------------------------------- |
 | Repository role       | Active federation core | README, manifests, and agent docs exist.                                         |
 | Installable product   | Foundation             | Web, desktop, Android, API, and core workspaces exist.                           |
-| Web build             | Locally verified       | `npm run web:build` passes on the local Windows builder.                         |
+| Web build             | Not currently verified | The web workspace is preserved, but its build is outside the active Android/Termux-safe root profile. |
 | Local API             | Foundation             | Health, state, records, Git, token, setup, and artifact routes exist.            |
 | Persistent state      | Foundation             | JSON-backed local state helpers exist.                                           |
 | Git read operations   | Foundation             | Branch, tag, commit, tree, blob, and diff readers exist.                         |
-| Smart HTTP transport  | Partial                | Token-aware access, protected-ref policy, and disposable live clone/fetch/push are covered by local smoke checks. |
-| Protected writes      | Partial                | Feature-branch push and protected-main denial are live-smoked; review-status merge policy is still pending. |
+| Smart HTTP transport  | Partial                | Token-aware access behavior has portable test coverage; the disposable live clone/fetch/push smoke command is not active. |
+| Protected writes      | Partial                | Protected-ref behavior has portable test coverage; live smoke and review-status merge policy remain pending. |
 | Desktop package       | Not built              | Electron metadata exists; installer output is not verified.                      |
 | Android package       | Not built              | Android shell exists; native project/APK output is not verified.                 |
 | AI provider execution | Not built              | AI request records exist; real provider adapters are not active.                 |
@@ -21,24 +21,26 @@ This is the canonical status record for AIFT Forge. It separates implemented beh
 
 ## Current verification evidence
 
-Last local verification pass: 2026-06-23 on the Windows local builder.
+Last local verification pass: 2026-10-08 using the active Android/Termux-safe
+profile. The matching hosted `Local QA` run also passed.
 
 Passing checks:
 
-- `npm install`
-- `npm run qa:deps`
-- `npm test`
+- `npm ci --ignore-scripts`
 - `npm run lint`
-- `npm run smoke:git-access`
-- `npm run smoke:git-live`
-- `npm audit --audit-level=high`
-- `npm run web:build`
-- `npm run license:check`
-- touched-file Prettier check
+- `npm run typecheck`
+- `npm test` (20 tests, including dependency security floors)
+- `npm run build`
+- `npm run qa:local`
+- hosted `Local QA`
 
-Known non-gate:
+Not verified by the active gate:
 
-- `npm run format:check` is a repository target, but existing legacy files are not yet normalized. Format changed files only unless a formatting-only normalization pass is approved and scoped.
+- desktop and web workspace builds;
+- native Android project generation or APK output;
+- live Git transport smoke coverage;
+- dependency audit, SBOM, license, formatting, or release checks from the
+  preserved desktop profile.
 
 ## Public claim boundaries
 
