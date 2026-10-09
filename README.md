@@ -8,7 +8,7 @@
 | Role | technical coordination core, repo/build/package/agent orchestration |
 | Workspace | `AIFT/AIFT-Forge` |
 | Control plane | AIFT workspace / AIFT-OS |
-| Verification | `npm run lint --if-present && npm run typecheck --if-present && npm run test --if-present && npm run build --if-present` |
+| Verification | `npm ci --ignore-scripts && npm run qa:local` |
 | Operating standards | local-first, inspectable, sovereign by default, AI behind governed provider interfaces |
 
 AIFT-Forge is where the Federation turns shared covenant into reusable technical form. It does not define the constitutional genome—that belongs to AIFT-Genesis—and it does not become the operating-system control plane—that belongs to AIFT-OS. Its work is the middle transformation: templates, packages, agent patterns, application foundations, build rules, verification gates, and coordination language that allow independent projects to inherit the Federation pattern without becoming copies of one another.
@@ -61,27 +61,24 @@ In AIFT-Forge, **Receive** begins with a repository need, package need, agent wo
 Primary setup and checks remain technical and explicit:
 
 ```bash
-npm install
+npm ci --ignore-scripts
 npm run qa:local
 ```
 
-The metadata-level verification path is:
+The active Android/Termux-safe QA gate expands to:
 
 ```bash
-npm run lint --if-present
-npm run typecheck --if-present
-npm run test --if-present
-npm run build --if-present
+npm run lint
+npm run typecheck
+npm test
+npm run build
 ```
 
-Focused repository tooling may also include:
-
-```bash
-npm run verify
-npm run readiness
-npm run deps:manifest
-npm run smoke:git-access
-```
+Desktop, web, native Android, live Git, audit, SBOM, license, and release
+commands are preserved but inactive in this profile. See
+[`docs/validation.md`](docs/validation.md) and [`docs/status.md`](docs/status.md),
+and do not report those checks as passing unless their profiles are restored and
+run.
 
 Security and truthfulness remain part of the Forge contract. No package should hide a secret requirement, claim an unavailable capability, convert a planned integration into a production statement, or make an irreversible external action the silent default.
 
