@@ -74,6 +74,20 @@ npm test
 npm run build
 ```
 
+### Verification coverage caveat (current implementation)
+
+The root `typecheck` and `build` commands currently invoke [`scripts/aift-typecheck-check.mjs`](scripts/aift-typecheck-check.mjs) and [`scripts/aift-build-check.mjs`](scripts/aift-build-check.mjs). **Both scripts only print a success message and exit with status 0; neither runs a TypeScript compiler or produces build artifacts.** Consequently, `npm run qa:local` executes the configured lint and Vitest commands but **must not be described as proof of successful typechecking or compilation**. In addition, the test command uses Vitest's `--passWithNoTests`, so a zero exit status alone does not prove that tests were discovered or executed. Inspect the test count and output.
+
+For a reproducible local check of the active root profile, run:
+
+```bash
+npm ci --ignore-scripts
+npm run qa:local
+npm run deps:doctor
+```
+
+`deps:doctor` reports platform information and scans manifests for selected desktop-native dependency references; its current implementation also exits successfully when such references are found. It is diagnostic, **not** a dependency-vulnerability scan. Consult [`docs/validation.md`](docs/validation.md) for the active profile, and independently verify dependency advisories and lockfile resolutions before making security claims.
+
 Desktop, web, native Android, live Git, audit, SBOM, license, and release
 commands are preserved but inactive in this profile. See
 [`docs/validation.md`](docs/validation.md) and [`docs/status.md`](docs/status.md),
