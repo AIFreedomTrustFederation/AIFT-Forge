@@ -174,12 +174,30 @@ function getJson(url, timeoutMs = 1500) {
   });
 }
 
-function isPrivateOrLocal(endpoint) {
-  return endpoint.startsWith("http://127.0.0.1") ||
-    endpoint.startsWith("http://localhost") ||
-    /^http:\/\/10\./.test(endpoint) ||
-    /^http:\/\/192\.168\./.test(endpoint) ||
-    /^http:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\./.test(endpoint);
+export function isPrivateOrLocal(endpoint) {
+  if (typeof endpoint !== "string") return false;
+
+  let url;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return false;
+  }
+
+  if (url.protocol !== "http:" || url.username || url.password) return false;
+
+  const host = url.hostname.toLowerCase();
+  if (host === "localhost" || host === "127.0.0.1" || host === "[::1]") return true;
+
+  const octets = host.split(".");
+  if (octets.length !== 4 || octets.some((octet) => !/^\d{1,3}$/.test(octet))) return false;
+
+  const [first, second, third, fourth] = octets.map(Number);
+  if ([first, second, third, fourth].some((octet) => octet > 255)) return false;
+
+  return first === 10 ||
+    (first === 192 && second === 168) ||
+    (first === 172 && second >= 16 && second <= 31);
 }
 
 function healthUrl(provider) {
