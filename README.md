@@ -78,6 +78,16 @@ npm run build
 
 The root `typecheck` and `build` commands currently invoke [`scripts/aift-typecheck-check.mjs`](scripts/aift-typecheck-check.mjs) and [`scripts/aift-build-check.mjs`](scripts/aift-build-check.mjs). **Both scripts only print a success message and exit with status 0; neither runs a TypeScript compiler or produces build artifacts.** Consequently, `npm run qa:local` executes the configured lint and Vitest commands but **must not be described as proof of successful typechecking or compilation**. In addition, the test command uses Vitest's `--passWithNoTests`, so a zero exit status alone does not prove that tests were discovered or executed. Inspect the test count and output.
 
+### JSON API request limits
+
+The local Forge JSON API now caps each JSON request body at **1 MiB**. Oversized
+JSON requests return HTTP 413 (`request-body-too-large`), and malformed JSON
+returns HTTP 400 (`invalid-json`). This is a bounded-memory safeguard for
+the JSON routes, not an authentication mechanism. Git smart HTTP RPC traffic
+uses a separate reader and is **not** covered by this limit. The API is still
+a development foundation; its JSON mutation routes do not yet enforce the
+token actor path used by Git smart HTTP. Do not expose it to untrusted networks.
+
 ### Root install versus preserved workspace lockfile
 
 The active `npm ci --ignore-scripts` command installs the root [`package.json`](package.json) dependency graph using [`package-lock.json`](package-lock.json); it does **not** install the separate pnpm workspace described by [`pnpm-workspace.yaml`](pnpm-workspace.yaml) and [`pnpm-lock.yaml`](pnpm-lock.yaml). Those preserved workspace files include Android, desktop, and Forge-core dependencies outside the active root QA profile.

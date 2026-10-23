@@ -17,19 +17,12 @@ import { handleGitSmartHttp } from '../../packages/forge-core/src/git-rpc-http.m
 import { authenticateToken, createLocalToken, revokeToken, seedAutomationToken } from '../../packages/forge-core/src/token-auth.mjs';
 import { localSetup } from '../../packages/forge-core/src/local-setup.mjs';
 import { createAndroidBuildRequest } from '../../packages/forge-core/src/android-build.mjs';
+import { readJson } from './request-json.mjs';
 
 const host = process.env.AIFT_FORGE_API_HOST || '127.0.0.1';
 const port = Number(process.env.AIFT_FORGE_API_PORT || 4177);
 const repoRoot = process.cwd();
 const androidDist = path.join(repoRoot, 'dist', 'android');
-
-async function readJson(req) {
-  const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  const text = Buffer.concat(chunks).toString('utf8');
-  if (!text.trim()) return {};
-  return JSON.parse(text);
-}
 
 function send(res, status, payload) {
   const body = JSON.stringify(payload, null, 2);
@@ -127,7 +120,7 @@ const server = http.createServer(async (req, res) => {
   try {
     await handler(req, res);
   } catch (error) {
-    send(res, 500, { ok: false, error: error.message });
+    send(res, error.statusCode || 500, { ok: false, error: error.message });
   }
 });
 
