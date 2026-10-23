@@ -78,6 +78,12 @@ npm run build
 
 The root `typecheck` and `build` commands currently invoke [`scripts/aift-typecheck-check.mjs`](scripts/aift-typecheck-check.mjs) and [`scripts/aift-build-check.mjs`](scripts/aift-build-check.mjs). **Both scripts only print a success message and exit with status 0; neither runs a TypeScript compiler or produces build artifacts.** Consequently, `npm run qa:local` executes the configured lint and Vitest commands but **must not be described as proof of successful typechecking or compilation**. In addition, the test command uses Vitest's `--passWithNoTests`, so a zero exit status alone does not prove that tests were discovered or executed. Inspect the test count and output.
 
+### Root install versus preserved workspace lockfile
+
+The active `npm ci --ignore-scripts` command installs the root [`package.json`](package.json) dependency graph using [`package-lock.json`](package-lock.json); it does **not** install the separate pnpm workspace described by [`pnpm-workspace.yaml`](pnpm-workspace.yaml) and [`pnpm-lock.yaml`](pnpm-lock.yaml). Those preserved workspace files include Android, desktop, and Forge-core dependencies outside the active root QA profile.
+
+The [`dependency security regression tests`](tests/dependency-security.test.mjs) check specific declared versions and lockfile entries for `simple-git`, `@simple-git/argv-parser`, and Capacitor. They are **static regression checks**, not a package-manager install of every workspace, an advisory audit, or proof that all dependencies are free of vulnerabilities. Before restoring or releasing any preserved workspace, separately resolve, install, audit, build, and test its actual dependency graph on a supported platform.
+
 For a reproducible local check of the active root profile, run:
 
 ```bash
