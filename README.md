@@ -88,6 +88,10 @@ uses a separate reader and is **not** covered by this limit. The API is still
 a development foundation; its JSON mutation routes do not yet enforce the
 token actor path used by Git smart HTTP. Do not expose it to untrusted networks.
 
+### Local API authentication boundary
+
+The Forge API entry point is [`apps/forge-api/server.mjs`](apps/forge-api/server.mjs). It listens on `127.0.0.1:4177` by default (overridable with `AIFT_FORGE_API_HOST` and `AIFT_FORGE_API_PORT`); `/api/health` checks only HTTP responsiveness. Unlike the token-checked Git smart HTTP handler, the JSON route dispatcher does **not** authenticate requests. Its unauthenticated endpoints include state reads, state reset, permission grants, and token creation/seeding; the seed helper uses a built-in development-token fallback if `AIFT_FORGE_BOOTSTRAP_TOKEN` is unset. JSON responses also allow cross-origin access; CORS is not an authorization control. Keep this server bound to loopback in a trusted development environment. Do not expose it through a public bind or reverse proxy until JSON route authorization and bootstrap-token handling are hardened.
+
 ### Root install versus preserved workspace lockfile
 
 The active `npm ci --ignore-scripts` command installs the root [`package.json`](package.json) dependency graph using [`package-lock.json`](package-lock.json); it does **not** install the separate pnpm workspace described by [`pnpm-workspace.yaml`](pnpm-workspace.yaml) and [`pnpm-lock.yaml`](pnpm-lock.yaml). Those preserved workspace files include Android, desktop, and Forge-core dependencies outside the active root QA profile.
