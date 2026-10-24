@@ -46,6 +46,20 @@ Its integration boundaries are deliberate:
 
 The practical rule is that Forge should make reuse easier than duplication while still allowing each repository to declare its own metadata, dependencies, commands, and source of truth.
 
+### Tree Explorer: source and public-portal boundary
+
+The browser engine [`@aift/tree-explorer`](packages/tree-explorer/README.md) is implemented in [`packages/tree-explorer/src/tree-explorer.mjs`](packages/tree-explorer/src/tree-explorer.mjs) and declared as a **private** package in its [manifest](packages/tree-explorer/package.json). It consumes the canonical Genesis Tree manifest and optional Living Atlas mappings to provide navigable SVG views, epistemic filtering, relationship details, and Tree-to-Atlas navigation. Genesis owns the source manifests; Forge does not edit them or supply live AIFT-OS/Runtime state.
+
+The [public portal homepage](https://github.com/AIFreedomTrustFederation/www.aifreedomtrust.com/blob/main/index.html) mounts this engine with browser `import()`: it first tries a commit-pinned Forge module on jsDelivr, then a mutable `main` CDN URL, then a GitHub Pages path. Its Tree and Atlas JSON URLs also point to Genesis `main`. External module and manifest availability, cross-origin fetching, and mutable fallbacks therefore affect the deployed experience; the pinned-first module URL does **not** make the entire integration immutable or prove that it renders successfully in browsers.
+
+For focused, fixture-based regression coverage after `npm ci --ignore-scripts`, run:
+
+```bash
+npx vitest run tests/tree-explorer.test.mjs
+```
+
+The [Explorer tests](tests/tree-explorer.test.mjs) exercise manifest normalization and navigation state, not public-site loading, external fetches, or a live browser session. The active root QA profile does not build or deploy the public portal. Verify the browser integration separately when changing the engine, manifest schemas, or module URLs.
+
 ---
 
 ## Book III — SOP-ALOHA-001 in the Forge
