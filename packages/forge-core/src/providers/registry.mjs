@@ -42,8 +42,17 @@ function providerDir(paths) {
   return join(paths.repoRoot, ".forge", "providers");
 }
 
+function validateProviderId(id) {
+  if (typeof id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id)) {
+    throw new Error(
+      "Provider id must start with a letter or digit and contain only letters, digits, dots, underscores, or hyphens."
+    );
+  }
+  return id;
+}
+
 function providerFile(paths, id) {
-  return join(providerDir(paths), `${id}.json`);
+  return join(providerDir(paths), `${validateProviderId(id)}.json`);
 }
 
 function ensureProviderDir(paths) {
@@ -94,16 +103,15 @@ export function readProviders(paths) {
 }
 
 export function addProvider(paths, provider) {
-  ensureProviderDir(paths);
-
-  if (!provider.id) throw new Error("Provider id is required.");
+  const id = validateProviderId(provider.id);
   if (!provider.endpoint) throw new Error("Provider endpoint is required.");
+  ensureProviderDir(paths);
 
   const next = {
     schema: "aift.forge.local-provider.v1",
-    id: provider.id,
+    id,
     type: provider.type ?? "ollama",
-    label: provider.label ?? provider.id,
+    label: provider.label ?? id,
     endpoint: provider.endpoint,
     localOnly: true,
     openSource: provider.openSource ?? true,
@@ -113,7 +121,7 @@ export function addProvider(paths, provider) {
     updatedAt: new Date().toISOString()
   };
 
-  writeJson(providerFile(paths, provider.id), next);
+  writeJson(providerFile(paths, id), next);
   return next;
 }
 
