@@ -183,11 +183,31 @@ function getJson(url, timeoutMs = 1500) {
 }
 
 function isPrivateOrLocal(endpoint) {
-  return endpoint.startsWith("http://127.0.0.1") ||
-    endpoint.startsWith("http://localhost") ||
-    /^http:\/\/10\./.test(endpoint) ||
-    /^http:\/\/192\.168\./.test(endpoint) ||
-    /^http:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\./.test(endpoint);
+  if (typeof endpoint !== "string") return false;
+
+  let parsed;
+  try {
+    parsed = new URL(endpoint);
+  } catch {
+    return false;
+  }
+
+  // A prefix match is not sufficient: localhost.attacker.invalid is not localhost.
+  if (parsed.protocol !== "http:" || parsed.username || parsed.password) return false;
+  const hostname = parsed.hostname.toLowerCase();
+  if (hostname === "localhost" || hostname === "127.0.0.1") return true;
+
+  // URL parsing canonicalizes numeric IPv4 spellings. Require a complete IPv4
+  // address before accepting RFC1918 private ranges.
+  const octets = hostname.split(".");
+  if (octets.length !== 4 ||
+      octets.some((octet) => !/^\d{1,3}$/.test(octet) || Number(octet) > 255)) {
+    return false;
+  }
+  const [first, second] = octets.map(Number);
+  return first === 10 ||
+    (first === 192 && second === 168) ||
+    (first === 172 && second >= 16 && second <= 31);
 }
 
 function healthUrl(provider) {

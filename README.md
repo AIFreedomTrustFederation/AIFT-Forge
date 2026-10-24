@@ -98,6 +98,12 @@ The Forge provider CLI stores JSON definitions in `.forge/providers/`. `aift-for
 
 **Scope:** this check restricts the *filename derived from an ID*. It does not authenticate callers, protect against pre-existing filesystem symlinks or hard links, or prove that configured endpoints are reachable or trustworthy. Treat the local registry directory as operator-controlled, and do not expose provider management to untrusted users.
 
+### Local provider health-check destination boundary
+
+The [provider registry](packages/forge-core/src/providers/registry.mjs) now parses configured HTTP endpoints before health-checking them. Only the exact `localhost` name, `127.0.0.1`, and complete IPv4 addresses in the RFC1918 private ranges (`10/8`, `172.16/12`, `192.168/16`) are eligible; URL userinfo, public hosts, HTTPS, and hostname lookalikes such as `localhost.example.invalid` are rejected **before any HTTP request**. This closes the previous prefix-matching bypass in the local-only provider policy. Run `node --test tests/provider-registry.check.mjs` to verify rejected destinations and a real loopback health check.
+
+**Limitations:** This is an outbound destination allowlist, not authentication, authorization, or a comprehensive SSRF defense. It deliberately permits HTTP calls to operator-configured private-LAN addresses, which may host sensitive services. It does not validate the provider's identity, resolve trust in local DNS/hosts-file mappings, or guarantee that an endpoint remains trustworthy. Only register endpoints you control.
+
 ### JSON API request limits
 
 The local Forge JSON API now caps each JSON request body at **1 MiB**. Oversized
