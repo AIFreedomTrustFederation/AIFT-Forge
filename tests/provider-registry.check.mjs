@@ -58,3 +58,47 @@ test("provider IDs with separators or control characters are rejected", () => {
     rmSync(repoRoot, { recursive: true, force: true });
   }
 });
+
+test("provider health checks reject lookalike private hosts before making HTTP requests", async () => {
+  const { checkProvider } = await import("../packages/forge-core/src/providers/registry.mjs");
+  for (const endpoint of [
+    "http://localhost.attacker.invalid/collect",
+    "http://127.0.0.1.attacker.invalid/collect",
+    "http://10.attacker.invalid/collect",
+    "http://192.168.attacker.invalid/collect",
+    "http://172.16.attacker.invalid/collect",
+    "http://127.0.0.1@attacker.invalid/collect",
+    "http://127.0.0.1:8080@attacker.invalid/collect",
+    "https://127.0.0.1",
+    "http://172.32.0.1",
+    "http://192.169.0.1",
+    "not-a-url"
+  ]) {
+    const result = await checkProvider({
+      id: "host-boundary-test", type: "custom", enabled: true,
+      requiresApiKey: false, endpoint
+    });
+    assert.equal(result.ok, false, endpoint);
+    assert.match(result.reason, /Endpoint is not localhost or private LAN/, endpoint);
+  }
+});
+
+test("local HTTP provider health checks still work", async () => {
+  const { createServer } = await import("node:http");
+  const { checkProvider } = await import("../packages/forge-core/src/providers/registry.mjs");
+  const server = createServer((_req, res) => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end('{"ok":true}');
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const result = await checkProvider({
+      id: "local-health-test", type: "custom", enabled: true,
+      requiresApiKey: false, endpoint: `http://127.0.0.1:${server.address().port}`
+    });
+    assert.equal(result.ok, true, result.reason);
+    assert.equal(result.reason, "Provider reachable.");
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
