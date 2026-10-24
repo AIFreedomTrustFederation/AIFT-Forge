@@ -76,7 +76,13 @@ npm run build
 
 ### Verification coverage caveat (current implementation)
 
-The root `typecheck` and `build` commands currently invoke [`scripts/aift-typecheck-check.mjs`](scripts/aift-typecheck-check.mjs) and [`scripts/aift-build-check.mjs`](scripts/aift-build-check.mjs). **Both scripts only print a success message and exit with status 0; neither runs a TypeScript compiler or produces build artifacts.** Consequently, `npm run qa:local` executes the configured lint and Vitest commands but **must not be described as proof of successful typechecking or compilation**. In addition, the test command uses Vitest's `--passWithNoTests`, so a zero exit status alone does not prove that tests were discovered or executed. Inspect the test count and output.
+The root `typecheck` and `build` commands currently invoke [`scripts/aift-typecheck-check.mjs`](scripts/aift-typecheck-check.mjs) and [`scripts/aift-build-check.mjs`](scripts/aift-build-check.mjs). **Both scripts only print a success message and exit with status 0; neither runs a TypeScript compiler or produces build artifacts.** Consequently, `npm run qa:local` executes the configured lint and Vitest commands but **must not be described as proof of successful typechecking or compilation**. The test command retains Vitest's `--passWithNoTests` for its existing suite, but now also runs `node --test tests/provider-registry.check.mjs` for mandatory provider-registry filesystem regression coverage. Inspect both test runners' results; a successful QA gate still does not establish full TypeScript compilation or application build artifacts.
+
+### Local provider registry path boundary
+
+The Forge provider CLI stores JSON definitions in `.forge/providers/`. `aift-forge provider add <id> <endpoint> [type]` now accepts only IDs beginning with an ASCII letter or digit and containing letters, digits, dots, underscores, or hyphens. Path separators, traversal strings, and control characters are rejected before any provider file is written. This prevents a caller-supplied ID such as `../../important` from writing outside the registry; the [provider registry regression tests](tests/provider-registry.check.mjs) exercise both rejected paths and ordinary IDs. Existing valid provider IDs are unchanged.
+
+**Scope:** this check restricts the *filename derived from an ID*. It does not authenticate callers, protect against pre-existing filesystem symlinks or hard links, or prove that configured endpoints are reachable or trustworthy. Treat the local registry directory as operator-controlled, and do not expose provider management to untrusted users.
 
 ### JSON API request limits
 
