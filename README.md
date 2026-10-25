@@ -158,6 +158,8 @@ AIFT-Forge is successful when a downstream repository can inherit a useful patte
 
 This is why repository metadata is part of the Forge's living grammar. `aift.repo.json` declares this project's layer and role to the Federation; downstream repositories declare their own. The control plane can coordinate them because the differences are named rather than erased.
 
+**Federation synchronization metadata boundary:** [`.aift/capabilities.json`](.aift/capabilities.json) declares `sync` as `ready` with the descriptor `git remote/status`, but this is not an executable synchronization command; [`.aift/commands/status.sh`](.aift/commands/status.sh) only runs `git status --short`. [`aift.repo.json`](aift.repo.json) separately declares `git pull --ff-only`, which can change the checkout if executed. Neither declaration proves that synchronization ran, local and remote revisions agree, or an operation was authorized. Treat these as discovery and inspection metadata until execution evidence and resulting revisions are independently verified.
+
 ### The Return of the Word
 
 In the Forge, the Word returns as an interface that still remembers why it exists. Doctrine becomes a package, package becomes capability, capability becomes verified use, and verified use returns to the human builder without concealing what was inherited, what was changed, or who owns the next decision. That is how technical reuse remains covenant rather than conformity.
