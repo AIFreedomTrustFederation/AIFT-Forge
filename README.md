@@ -52,6 +52,8 @@ The browser engine [`@aift/tree-explorer`](packages/tree-explorer/README.md) is 
 
 The [public portal homepage](https://github.com/AIFreedomTrustFederation/www.aifreedomtrust.com/blob/main/index.html) mounts this engine with browser `import()`: it first tries a commit-pinned Forge module on jsDelivr, then a mutable `main` CDN URL, then a GitHub Pages path. Its Tree and Atlas JSON URLs also point to Genesis `main`. External module and manifest availability, cross-origin fetching, and mutable fallbacks therefore affect the deployed experience; the pinned-first module URL does **not** make the entire integration immutable or prove that it renders successfully in browsers.
 
+**Tree/Atlas link-scheme boundary:** The [Explorer renderer](packages/tree-explorer/src/tree-explorer.mjs) assigns Atlas `entity.links[].uri` directly to anchor `href` and resolves Tree/Atlas source URIs with `new URL(...)` before assigning `href`, without an HTTP(S) scheme allowlist in those paths. The [fixture-based tests](tests/tree-explorer.test.mjs) do not exercise unsafe URL schemes or browser link activation; a passing Explorer test does not establish that manifest-provided destinations are safe to open. This documents a source-level validation gap, not an observed malicious Genesis link or a demonstrated browser exploit.
+
 For focused, fixture-based regression coverage after `npm ci --ignore-scripts`, run:
 
 ```bash
