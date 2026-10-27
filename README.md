@@ -96,6 +96,10 @@ The root `typecheck` and `build` commands currently invoke [`scripts/aift-typech
 
 **Federation manifest versus hosted QA:** [`aift.repo.json`](aift.repo.json) advertises lint, typecheck, test, and build commands with `--if-present`. All four scripts currently exist in [`package.json`](package.json), but that manifest command neither installs locked dependencies nor checks checkout cleanliness. The [hosted Local QA workflow](.github/workflows/qa.yml) separately checks the inert-install policy, installs dependencies, runs the QA gate, and checks for a clean checkout. If a script is removed, `--if-present` can silently skip it. A successful manifest command is therefore not evidence that the full hosted QA workflow ran.
 
+### Self-improvement patch validation boundary
+
+The [Phase 12B patch workflow](docs/SAFE_SELF_IMPROVEMENT_PHASE_12B.md) exposes validation and application as separate commands. In [`patches.mjs`](packages/forge-core/src/improve/patches.mjs), `applyPatch` requires a matching approved record and creates a snapshot before writing files, but it does **not** call `validatePatch` or execute the patch's declared checks. An `applied` status therefore records application, not a passing validation result. The separate `validatePatch` function currently executes only `node-check` entries; an empty or unsupported check list can return `ok: true` without executing a check. Review the resulting diff and run relevant verification independently before classifying a patch as tested.
+
 ### Local provider registry path boundary
 
 The Forge provider CLI stores JSON definitions in `.forge/providers/`. `aift-forge provider add <id> <endpoint> [type]` now accepts only IDs beginning with an ASCII letter or digit and containing letters, digits, dots, underscores, or hyphens. Path separators, traversal strings, and control characters are rejected before any provider file is written. This prevents a caller-supplied ID such as `../../important` from writing outside the registry; the [provider registry regression tests](tests/provider-registry.check.mjs) exercise both rejected paths and ordinary IDs. Existing valid provider IDs are unchanged.
