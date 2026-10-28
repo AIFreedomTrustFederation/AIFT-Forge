@@ -52,12 +52,12 @@ Ready:
 - Smart transport bridge exists.
 - Smart HTTP write requests require a valid local token with `repo:write` scope.
 - Smart HTTP receive-pack POST requests run protected-ref policy before invoking Git.
-- Disposable live Git client smoke verifies clone, fetch, feature-branch push, and protected-main denial.
 
 Still required:
 
 - Review/status policy for merge-class writes.
 - Request size limits and streaming hardening.
+- Re-run the preserved [disposable live Git client smoke](../scripts/smoke-live-git-client.mjs) to verify clone, fetch, feature-branch push, and protected-main denial on the current revision; the active root QA and hosted Local QA do not execute this smoke.
 
 ## Allowed tests before all gates pass
 
