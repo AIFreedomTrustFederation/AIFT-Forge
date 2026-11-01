@@ -41,8 +41,12 @@ def generate(root: Path, output: Path, env: dict[str, str] | None = None) -> int
     env = os.environ if env is None else env
     try:
         root = root.resolve()
-        output = output.resolve()
-        if output.is_relative_to(root):
+        # Preserve the final path component: resolve() would follow an output symlink
+        # and cause the cleanup below to delete its target instead of the link.
+        output = output.absolute()
+        if output.is_symlink():
+            raise ValueError("verification output must not be a symlink")
+        if output.resolve().is_relative_to(root):
             raise ValueError("verification output must be outside the checkout")
         # Fail closed: an invalid rerun must not leave a prior success record for upload.
         output.unlink(missing_ok=True)

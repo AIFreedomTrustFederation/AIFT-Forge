@@ -86,5 +86,14 @@ class ForgeVerificationTests(unittest.TestCase):
         self.assertFalse(self.output.exists())
 
 
+    def test_output_symlink_rejected_without_modifying_target(self):
+        sentinel = Path(self.temp.name) / "sentinel.json"
+        sentinel.write_text("KEEP ME", encoding="utf-8")
+        self.output.symlink_to(sentinel)
+        self.assertEqual(producer.generate(self.root, self.output, {}), 2)
+        self.assertTrue(self.output.is_symlink())
+        self.assertEqual(sentinel.read_text(encoding="utf-8"), "KEEP ME")
+
+
 if __name__ == "__main__":
     unittest.main()
