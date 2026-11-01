@@ -62,6 +62,12 @@ class ForgeVerificationTests(unittest.TestCase):
         self.assertEqual(producer.generate(self.root, self.output, {"GITHUB_REPOSITORY": "other/repo"}), 2)
         self.assertFalse(self.output.exists())
 
+    def test_identity_failure_removes_stale_success_evidence(self):
+        self.assertEqual(producer.generate(self.root, self.output, {}), 0)
+        self.assertEqual(json.loads(self.output.read_text())["overall_status"], "passed")
+        self.assertEqual(producer.generate(self.root, self.output, {"GITHUB_SHA": "0" * 40}), 2)
+        self.assertFalse(self.output.exists(), "invalid rerun must not leave uploadable success evidence")
+
     def test_output_inside_checkout_rejected(self):
         self.assertEqual(producer.generate(self.root, self.root / "evidence.json", {}), 2)
         self.assertFalse((self.root / "evidence.json").exists())

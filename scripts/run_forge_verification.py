@@ -44,6 +44,8 @@ def generate(root: Path, output: Path, env: dict[str, str] | None = None) -> int
         output = output.resolve()
         if output.is_relative_to(root):
             raise ValueError("verification output must be outside the checkout")
+        # Fail closed: an invalid rerun must not leave a prior success record for upload.
+        output.unlink(missing_ok=True)
         result = subprocess.run(["git", "rev-parse", "--verify", "HEAD"], cwd=root,
                                 capture_output=True, text=True, check=False)
         commit = result.stdout.strip()
