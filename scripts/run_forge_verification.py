@@ -117,7 +117,7 @@ def generate(root: Path, output: Path, env: dict[str, str] | None = None) -> int
         checks = [
             {"id": "forge_qa", "command": "npm run qa:local",
              "status": "passed" if qa_code == 0 else "failed", "exit_code": qa_code},
-            {"id": "worktree", "command": "git status --porcelain=v1 --untracked-files=all; git ls-files -v -z (before and after)",
+            {"id": "worktree", "command": "git status --porcelain=v1 --untracked-files=all; git ls-files -v -z; git replace -l (before and after QA)",
              "status": "passed" if tree_code == 0 else "failed", "exit_code": tree_code},
             {"id": "checkout_identity", "command": "git rev-parse --verify HEAD (before and after QA)",
              "status": "passed" if identity_code == 0 else "failed", "exit_code": identity_code},

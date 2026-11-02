@@ -43,6 +43,16 @@ class ForgeVerificationTests(unittest.TestCase):
         self.assertEqual(record["dependencies"]["status"], "not_checked")
         self.assertEqual(record["deployment"]["status"], "not_applicable")
 
+    def test_worktree_evidence_command_lists_all_probes(self):
+        # The producer invokes three Git checks before and after QA. The
+        # machine-readable command description must not omit replace refs.
+        self.assertEqual(producer.generate(self.root, self.output, {}), 0)
+        record = json.loads(self.output.read_text())
+        command = record["checks"][1]["command"]
+        for probe in ("git status --porcelain=v1", "git ls-files -v -z", "git replace -l"):
+            with self.subTest(probe=probe):
+                self.assertIn(probe, command)
+
     def test_qa_failure_publishes_negative_evidence(self):
         producer.invoke = lambda command, root: 7
         self.assertEqual(producer.generate(self.root, self.output, {}), 1)
