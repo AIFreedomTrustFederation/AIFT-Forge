@@ -49,7 +49,20 @@ def worktree_status(root: Path) -> int:
         return 127
     if flags.returncode:
         return flags.returncode
-    return 1 if any(entry and entry[:1] != b"H" for entry in flags.stdout.split(b"\0")) else 0
+    if any(entry and entry[:1] != b"H" for entry in flags.stdout.split(b"\0")):
+        return 1
+    # Replacement refs can substitute a different source tree without changing
+    # the reported HEAD SHA or making git status show a dirty checkout.
+    try:
+        replacements = subprocess.run(
+            ["git", "replace", "-l"], cwd=root,
+            capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        return 127
+    if replacements.returncode:
+        return replacements.returncode
+    return 1 if replacements.stdout.strip() else 0
 
 
 def generate(root: Path, output: Path, env: dict[str, str] | None = None) -> int:

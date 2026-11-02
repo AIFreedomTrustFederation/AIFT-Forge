@@ -89,6 +89,34 @@ class ForgeVerificationTests(unittest.TestCase):
         self.assertEqual(producer.generate(self.root, self.output, {}), 1)
         self.assertEqual(json.loads(self.output.read_text())["checks"][1]["status"], "failed")
 
+    def test_replace_ref_cannot_hide_substituted_source_tree(self):
+        (self.root / "tracked.txt").write_text("substituted\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(self.root), "add", "tracked.txt"], check=True)
+        subprocess.run(["git", "-C", str(self.root), "commit", "-qm", "alternate source"], check=True)
+        alternate = subprocess.check_output(
+            ["git", "-C", str(self.root), "rev-parse", "HEAD"], text=True).strip()
+        subprocess.run(["git", "-C", str(self.root), "reset", "--hard", self.sha], check=True,
+                       capture_output=True)
+
+        def replace_source(command, root):
+            subprocess.run(["git", "-C", str(root), "replace", self.sha, alternate], check=True)
+            subprocess.run(["git", "-C", str(root), "reset", "--hard", self.sha], check=True,
+                           capture_output=True)
+            self.assertEqual((root / "tracked.txt").read_text(encoding="utf-8"), "substituted\n")
+            self.assertEqual(subprocess.check_output(
+                ["git", "-C", str(root), "status", "--porcelain=v1", "--untracked-files=all"],
+                text=True), "")
+            self.assertEqual(subprocess.check_output(
+                ["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip(), self.sha)
+            return 0
+
+        producer.invoke = replace_source
+        self.assertEqual(producer.generate(self.root, self.output, {}), 1)
+        record = json.loads(self.output.read_text())
+        self.assertEqual(record["checks"][0]["status"], "passed")
+        self.assertEqual(record["checks"][1]["status"], "failed")
+        self.assertEqual(record["checks"][2]["status"], "passed")
+
     def test_clean_worktree_cannot_hide_checkout_head_drift(self):
         def advance_head(command, root):
             (root / "tracked.txt").write_text("new commit\\n", encoding="utf-8")
