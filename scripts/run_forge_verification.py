@@ -35,7 +35,21 @@ def worktree_status(root: Path) -> int:
         )
     except OSError:
         return 127
-    return result.returncode or (1 if result.stdout else 0)
+    if result.returncode or result.stdout:
+        return result.returncode or 1
+    # Git can hide tracked-file modifications when assume-unchanged or
+    # skip-worktree is set. Reject such index flags instead of claiming QA
+    # exercised an ordinary, fully observable checkout.
+    try:
+        flags = subprocess.run(
+            ["git", "ls-files", "-v", "-z"], cwd=root,
+            capture_output=True, check=False,
+        )
+    except OSError:
+        return 127
+    if flags.returncode:
+        return flags.returncode
+    return 1 if any(entry and entry[:1] != b"H" for entry in flags.stdout.split(b"\\0")) else 0
 
 
 def generate(root: Path, output: Path, env: dict[str, str] | None = None) -> int:
@@ -84,7 +98,7 @@ def generate(root: Path, output: Path, env: dict[str, str] | None = None) -> int
         checks = [
             {"id": "forge_qa", "command": "npm run qa:local",
              "status": "passed" if qa_code == 0 else "failed", "exit_code": qa_code},
-            {"id": "worktree", "command": "git status --porcelain=v1 --untracked-files=all (before and after)",
+            {"id": "worktree", "command": "git status --porcelain=v1 --untracked-files=all; git ls-files -v -z (before and after)",
              "status": "passed" if tree_code == 0 else "failed", "exit_code": tree_code},
             {"id": "checkout_identity", "command": "git rev-parse --verify HEAD (before and after QA)",
              "status": "passed" if identity_code == 0 else "failed", "exit_code": identity_code},

@@ -55,6 +55,28 @@ class ForgeVerificationTests(unittest.TestCase):
         self.assertEqual(producer.generate(self.root, self.output, {}), 1)
         self.assertEqual(json.loads(self.output.read_text())["checks"][1]["status"], "failed")
 
+    def test_assume_unchanged_cannot_hide_mutated_tracked_source(self):
+        def hide_mutation(command, root):
+            subprocess.run(["git", "-C", str(root), "update-index",
+                            "--assume-unchanged", "tracked.txt"], check=True)
+            (root / "tracked.txt").write_text("tampered\\n", encoding="utf-8")
+            self.assertEqual(subprocess.check_output(
+                ["git", "-C", str(root), "status", "--porcelain=v1"], text=True), "")
+            return 0
+
+        producer.invoke = hide_mutation
+        self.assertEqual(producer.generate(self.root, self.output, {}), 1)
+        record = json.loads(self.output.read_text())
+        self.assertEqual(record["checks"][0]["status"], "passed")
+        self.assertEqual(record["checks"][1]["status"], "failed")
+        self.assertEqual(record["checks"][2]["status"], "passed")
+
+    def test_skip_worktree_index_flag_cannot_claim_clean_checkout(self):
+        subprocess.run(["git", "-C", str(self.root), "update-index",
+                        "--skip-worktree", "tracked.txt"], check=True)
+        self.assertEqual(producer.generate(self.root, self.output, {}), 1)
+        self.assertEqual(json.loads(self.output.read_text())["checks"][1]["status"], "failed")
+
     def test_clean_worktree_cannot_hide_checkout_head_drift(self):
         def advance_head(command, root):
             (root / "tracked.txt").write_text("new commit\\n", encoding="utf-8")
