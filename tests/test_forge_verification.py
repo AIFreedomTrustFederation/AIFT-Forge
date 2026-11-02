@@ -151,11 +151,24 @@ class ForgeVerificationTests(unittest.TestCase):
         self.assertEqual(producer.generate(self.root, self.output, {"GITHUB_REPOSITORY": "other/repo"}), 2)
         self.assertFalse(self.output.exists())
 
-    def test_identity_failure_removes_stale_success_evidence(self):
+    def test_failed_rerun_preserves_existing_evidence_without_republishing(self):
         self.assertEqual(producer.generate(self.root, self.output, {}), 0)
-        self.assertEqual(json.loads(self.output.read_text())["overall_status"], "passed")
+        original = self.output.read_bytes()
+        self.assertEqual(json.loads(original)["overall_status"], "passed")
+        # A failed rerun must not delete another invocation's completed record.
+        # Exit 2 cannot satisfy the workflow's record_published upload guard.
         self.assertEqual(producer.generate(self.root, self.output, {"GITHUB_SHA": "0" * 40}), 2)
-        self.assertFalse(self.output.exists(), "invalid rerun must not leave uploadable success evidence")
+        self.assertEqual(self.output.read_bytes(), original)
+
+    def test_preexisting_destination_rejected_without_running_qa(self):
+        self.output.write_text("OTHER_WRITER", encoding="utf-8")
+
+        def unexpected_qa(command, root):
+            self.fail("QA must not run when evidence destination is occupied")
+
+        producer.invoke = unexpected_qa
+        self.assertEqual(producer.generate(self.root, self.output, {}), 2)
+        self.assertEqual(self.output.read_text(encoding="utf-8"), "OTHER_WRITER")
 
     def test_output_inside_checkout_rejected(self):
         self.assertEqual(producer.generate(self.root, self.root / "evidence.json", {}), 2)
