@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 
 REPOSITORY = "AIFreedomTrustFederation/AIFT-Forge"
 ROOT = Path(__file__).resolve().parents[1]
@@ -107,7 +108,22 @@ def generate(root: Path, output: Path, env: dict[str, str] | None = None) -> int
             ],
         }
         output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(json.dumps(record, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+        # Stage a complete record beside its destination; a failed/interrupted write
+        # must never leave partial JSON at the path uploaded by the workflow.
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=output.parent,
+                prefix=f".{output.name}.", suffix=".tmp", delete=False,
+            ) as staged:
+                temporary = Path(staged.name)
+                staged.write(json.dumps(record, sort_keys=True, indent=2) + "\n")
+                staged.flush()
+                os.fsync(staged.fileno())
+            os.replace(temporary, output)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
         print(f"Forge verification evidence: {output} ({record['overall_status']})")
         return 0 if record["overall_status"] == "passed" else 1
     except (OSError, ValueError) as exc:
