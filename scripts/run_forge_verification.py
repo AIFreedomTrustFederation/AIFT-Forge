@@ -16,7 +16,7 @@ import tempfile
 REPOSITORY = "AIFreedomTrustFederation/AIFT-Forge"
 ROOT = Path(__file__).resolve().parents[1]
 SHA = re.compile(r"[0-9a-f]{40}\Z")
-RUN_ID = re.compile(r"[1-9][0-9]*\Z")
+RUN_ID = re.compile(r"[1-9][0-9]{0,19}\Z")
 RUN_ATTEMPT = re.compile(r"[1-9][0-9]{0,9}\Z")
 
 
