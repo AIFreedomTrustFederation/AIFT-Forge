@@ -154,7 +154,9 @@ def generate(root: Path, output: Path, env: dict[str, str] | None = None) -> int
                 staged.write(json.dumps(record, sort_keys=True, indent=2) + "\n")
                 staged.flush()
                 os.fsync(staged.fileno())
-            os.replace(temporary, output)
+            # Publish without clobbering a concurrently created destination.
+            # The staged file is complete and fsynced before this atomic link.
+            os.link(temporary, output)
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)

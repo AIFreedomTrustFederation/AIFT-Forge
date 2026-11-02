@@ -216,7 +216,7 @@ class ForgeVerificationTests(unittest.TestCase):
 
 
     def test_atomic_publish_stages_complete_json_before_exposing_output(self):
-        actual_replace = producer.os.replace
+        actual_link = producer.os.link
         observations = []
 
         def inspect_then_publish(source, destination):
@@ -225,15 +225,29 @@ class ForgeVerificationTests(unittest.TestCase):
             self.assertEqual(staged_record["commit_sha"], self.sha)
             self.assertEqual(staged_record["overall_status"], "passed")
             observations.append(True)
-            return actual_replace(source, destination)
+            return actual_link(source, destination)
 
-        with mock.patch.object(producer.os, "replace", side_effect=inspect_then_publish):
+        with mock.patch.object(producer.os, "link", side_effect=inspect_then_publish):
             self.assertEqual(producer.generate(self.root, self.output, {}), 0)
         self.assertEqual(observations, [True])
         self.assertEqual(json.loads(self.output.read_text())["overall_status"], "passed")
 
+    def test_atomic_publish_rejects_racing_destination(self):
+        # An unrelated writer can create the upload path after the initial
+        # cleanup. Never overwrite that file with a purported QA result.
+        actual_link = producer.os.link
+
+        def racing_writer(source, destination):
+            Path(destination).write_text("CONCURRENT_WRITER", encoding="utf-8")
+            return actual_link(source, destination)
+
+        with mock.patch.object(producer.os, "link", side_effect=racing_writer):
+            self.assertEqual(producer.generate(self.root, self.output, {}), 2)
+        self.assertEqual(self.output.read_text(encoding="utf-8"), "CONCURRENT_WRITER")
+        self.assertEqual(list(self.output.parent.glob(f".{self.output.name}.*.tmp")), [])
+
     def test_atomic_publish_failure_leaves_no_partial_uploadable_record(self):
-        with mock.patch.object(producer.os, "replace", side_effect=OSError("simulated publish failure")):
+        with mock.patch.object(producer.os, "link", side_effect=OSError("simulated publish failure")):
             self.assertEqual(producer.generate(self.root, self.output, {}), 2)
         self.assertFalse(self.output.exists(), "failed publication must not leave a partial record")
         self.assertEqual(list(self.output.parent.glob(f".{self.output.name}.*.tmp")), [],
