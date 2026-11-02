@@ -273,11 +273,11 @@ class ForgeVerificationTests(unittest.TestCase):
             fake_bin.mkdir()
             fake_python = fake_bin / "python3"
             fake_python.write_text(
-                '#!/bin/sh\\n'
-                'if [ "$FORGE_FAKE_STATUS" != "2" ]; then\\n'
-                '  printf "fixture\\\\n" > "$RUNNER_TEMP/aift-forge-verification.json"\\n'
-                'fi\\n'
-                'exit "$FORGE_FAKE_STATUS"\\n',
+                '#!/bin/sh\n'
+                'if [ "$FORGE_FAKE_STATUS" != "2" ]; then\n'
+                '  printf "fixture\\n" > "$RUNNER_TEMP/aift-forge-verification.json"\n'
+                'fi\n'
+                'exit "$FORGE_FAKE_STATUS"\n',
                 encoding="utf-8",
             )
             fake_python.chmod(0o755)
@@ -302,10 +302,10 @@ class ForgeVerificationTests(unittest.TestCase):
                     )
                     self.assertEqual(result.returncode, status, result.stderr)
                     published = output.read_text(encoding="utf-8") if output.exists() else ""
-                    self.assertEqual(published, "record_published=true\\n"
+                    self.assertEqual(published, "record_published=true\n"
                                      if status in (0, 1) else "")
                     self.assertEqual(artifact.read_text(encoding="utf-8"),
-                                     "STALE" if status == 2 else "fixture\\n")
+                                     "STALE" if status == 2 else "fixture\n")
 
     def test_workflow_upload_requires_published_evidence(self):
         # A preexisting or concurrently created path must not be uploaded if
