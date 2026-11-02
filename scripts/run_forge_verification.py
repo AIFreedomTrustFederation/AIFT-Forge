@@ -17,6 +17,7 @@ REPOSITORY = "AIFreedomTrustFederation/AIFT-Forge"
 ROOT = Path(__file__).resolve().parents[1]
 SHA = re.compile(r"[0-9a-f]{40}\Z")
 RUN_ID = re.compile(r"[1-9][0-9]*\Z")
+RUN_ATTEMPT = re.compile(r"[1-9][0-9]{0,9}\Z")
 
 
 def invoke(command: list[str], root: Path) -> int:
@@ -92,11 +93,16 @@ def generate(root: Path, output: Path, env: dict[str, str] | None = None) -> int
                                                 env.get("GITHUB_REPOSITORY") != REPOSITORY):
             raise ValueError("GitHub Actions checkout identity is missing or inconsistent")
         run_url = None
+        run_attempt = None
         if source_type == "github-actions":
             run_id = env.get("GITHUB_RUN_ID", "")
             if not RUN_ID.fullmatch(run_id):
                 raise ValueError("GitHub Actions requires a valid run ID")
             run_url = f"https://github.com/{REPOSITORY}/actions/runs/{run_id}"
+            attempt_text = env.get("GITHUB_RUN_ATTEMPT", "")
+            if not RUN_ATTEMPT.fullmatch(attempt_text):
+                raise ValueError("GitHub Actions requires a valid run attempt")
+            run_attempt = int(attempt_text)
         before = worktree_status(root)
         qa_code = invoke(["npm", "run", "qa:local"], root)
         after = worktree_status(root)
@@ -121,7 +127,8 @@ def generate(root: Path, output: Path, env: dict[str, str] | None = None) -> int
             "repository": REPOSITORY,
             "commit_sha": commit,
             "generated_at": datetime.now(timezone.utc).isoformat(),
-            "source": {"type": source_type, "run_url": run_url},
+            "source": {"type": source_type, "run_url": run_url,
+                       "run_attempt": run_attempt},
             "checks": checks,
             "overall_status": "passed" if all(c["status"] == "passed" for c in checks) else "failed",
             "security": {"status": "not_checked", "reason": "Forge local QA is not a security assessment."},

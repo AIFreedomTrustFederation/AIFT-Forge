@@ -153,10 +153,12 @@ class ForgeVerificationTests(unittest.TestCase):
 
     def test_actions_run_url_requires_valid_run_id(self):
         env = {"GITHUB_ACTIONS": "true", "GITHUB_RUN_ID": "12345",
+               "GITHUB_RUN_ATTEMPT": "2",
                "GITHUB_SHA": self.sha, "GITHUB_REPOSITORY": producer.REPOSITORY}
         self.assertEqual(producer.generate(self.root, self.output, env), 0)
         self.assertEqual(json.loads(self.output.read_text())["source"]["run_url"],
                          f"https://github.com/{producer.REPOSITORY}/actions/runs/12345")
+        self.assertEqual(json.loads(self.output.read_text())["source"]["run_attempt"], 2)
         self.output.unlink()
         self.assertEqual(producer.generate(self.root, self.output, {**env, "GITHUB_RUN_ID": "nope"}), 2)
         self.assertFalse(self.output.exists())
@@ -164,6 +166,21 @@ class ForgeVerificationTests(unittest.TestCase):
                                                                   "GITHUB_RUN_ID": "12345"}), 2)
         self.assertFalse(self.output.exists())
 
+
+    def test_actions_attempt_missing_or_invalid_fails_closed(self):
+        env = {"GITHUB_ACTIONS": "true", "GITHUB_RUN_ID": "12345",
+               "GITHUB_SHA": self.sha, "GITHUB_REPOSITORY": producer.REPOSITORY}
+        for invalid in (None, "0", "1e3", "01", "1" * 5000):
+            with self.subTest(attempt=invalid):
+                candidate = dict(env)
+                if invalid is not None:
+                    candidate["GITHUB_RUN_ATTEMPT"] = invalid
+                self.assertEqual(producer.generate(self.root, self.output, candidate), 2)
+                self.assertFalse(self.output.exists())
+
+    def test_local_source_has_no_run_attempt(self):
+        self.assertEqual(producer.generate(self.root, self.output, {}), 0)
+        self.assertIsNone(json.loads(self.output.read_text())["source"]["run_attempt"])
 
     def test_output_symlink_rejected_without_modifying_target(self):
         sentinel = Path(self.temp.name) / "sentinel.json"
