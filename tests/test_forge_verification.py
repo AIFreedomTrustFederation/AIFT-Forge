@@ -44,6 +44,32 @@ class ForgeVerificationTests(unittest.TestCase):
         self.assertEqual(record["dependencies"]["status"], "not_checked")
         self.assertEqual(record["deployment"]["status"], "not_applicable")
 
+    def test_git_work_tree_override_cannot_hide_dirty_source(self):
+        # A redirected Git worktree can appear clean while npm executes the
+        # modified files in the actual checkout. Reject that environment
+        # before QA or evidence publication.
+        alternate = Path(self.temp.name) / "alternate-worktree"
+        alternate.mkdir()
+        (alternate / "tracked.txt").write_text("baseline\n", encoding="utf-8")
+        (self.root / "tracked.txt").write_text("tampered\n", encoding="utf-8")
+        self.assertIn("tracked.txt", subprocess.check_output(
+            ["git", "status", "--porcelain=v1"], cwd=self.root, text=True))
+        with mock.patch.dict(os.environ, {"GIT_WORK_TREE": str(alternate)}):
+            self.assertEqual(subprocess.check_output(
+                ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+                cwd=self.root, text=True), "")
+            self.assertEqual(producer.generate(self.root, self.output, {}), 2)
+        self.assertFalse(self.output.exists())
+
+    def test_other_git_source_redirects_fail_closed(self):
+        for variable, value in (("GIT_DIR", "/tmp/other-git-dir"),
+                                ("GIT_INDEX_FILE", "/tmp/alternate-index"),
+                                ("GIT_CONFIG_COUNT", "0"),
+                                ("GIT_CONFIG_KEY_0", "core.worktree")):
+            with self.subTest(variable=variable), mock.patch.dict(os.environ, {variable: value}):
+                self.assertEqual(producer.generate(self.root, self.output, {}), 2)
+                self.assertFalse(self.output.exists())
+
     def test_worktree_evidence_command_lists_all_probes(self):
         # The producer invokes three Git checks before and after QA. The
         # machine-readable command description must not omit replace refs.

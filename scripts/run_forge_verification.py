@@ -19,6 +19,28 @@ SHA = re.compile(r"[0-9a-f]{40}\Z")
 RUN_ID = re.compile(r"[1-9][0-9]{0,19}\Z")
 RUN_ATTEMPT = re.compile(r"[1-9][0-9]{0,9}\Z")
 
+# Git commands must inspect the same checkout that npm exercises. Inherited
+# Git environment overrides can redirect status to a different, clean tree
+# while QA executes modified files in ROOT. Fail closed rather than reporting
+# a misleading clean-worktree result.
+GIT_SOURCE_OVERRIDES = frozenset({
+    "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR",
+    "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_REPLACE_REF_BASE", "GIT_NAMESPACE", "GIT_GRAFT_FILE",
+    "GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_GLOBAL",
+    "GIT_CONFIG_SYSTEM",
+})
+
+
+def reject_git_source_overrides() -> None:
+    present = sorted(name for name in os.environ if name in GIT_SOURCE_OVERRIDES or
+                     name.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")))
+    if present:
+        # Report only variable names; values can contain private paths or data.
+        raise ValueError("Git source-affecting environment overrides are forbidden: " +
+                         ", ".join(present))
+
+
 
 def invoke(command: list[str], root: Path) -> int:
     try:
@@ -69,6 +91,7 @@ def worktree_status(root: Path) -> int:
 def generate(root: Path, output: Path, env: dict[str, str] | None = None) -> int:
     env = os.environ if env is None else env
     try:
+        reject_git_source_overrides()
         root = root.resolve()
         # Preserve the final path component: resolve() would follow an output symlink
         # and cause the cleanup below to delete its target instead of the link.
