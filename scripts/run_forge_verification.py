@@ -77,8 +77,12 @@ def generate(root: Path, output: Path, env: dict[str, str] | None = None) -> int
             raise ValueError("verification output must not be a symlink")
         if output.resolve().is_relative_to(root):
             raise ValueError("verification output must be outside the checkout")
-        # Fail closed: an invalid rerun must not leave a prior success record for upload.
-        output.unlink(missing_ok=True)
+        # Do not remove a previous or concurrent writer's published evidence.
+        # The workflow uploads only after this invocation reports publication;
+        # a stale path therefore cannot turn a failed rerun into a new upload.
+        # The final os.link() independently rejects a later racing writer.
+        if output.exists():
+            raise ValueError("verification output already exists; refusing overwrite")
         result = subprocess.run(["git", "rev-parse", "--verify", "HEAD"], cwd=root,
                                 capture_output=True, text=True, check=False)
         commit = result.stdout.strip()
