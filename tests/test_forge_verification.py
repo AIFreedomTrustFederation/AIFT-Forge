@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -258,6 +259,53 @@ class ForgeVerificationTests(unittest.TestCase):
             self.assertEqual(producer.generate(self.root, self.output, {}), 2)
         self.assertEqual(self.output.read_text(encoding="utf-8"), "CONCURRENT_WRITER")
         self.assertEqual(list(self.output.parent.glob(f".{self.output.name}.*.tmp")), [])
+
+    def test_actual_workflow_shell_guard_for_success_failure_and_prepublication_error(self):
+        # Exercise the actual workflow shell, not merely its static text.
+        # A fake python3 isolates the exit-status/publication protocol from
+        # npm and GitHub; this does not simulate hosted artifact upload.
+        workflow = json.loads((SCRIPT.parents[1] / ".github/workflows/qa.yml").read_text(encoding="utf-8"))
+        step = next(item for item in workflow["jobs"]["qa"]["steps"]
+                    if item["name"] == "Run local QA gate and emit commit-bound evidence")
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            fake_bin = base / "bin"
+            fake_bin.mkdir()
+            fake_python = fake_bin / "python3"
+            fake_python.write_text(
+                '#!/bin/sh\\n'
+                'if [ "$FORGE_FAKE_STATUS" != "2" ]; then\\n'
+                '  printf "fixture\\\\n" > "$RUNNER_TEMP/aift-forge-verification.json"\\n'
+                'fi\\n'
+                'exit "$FORGE_FAKE_STATUS"\\n',
+                encoding="utf-8",
+            )
+            fake_python.chmod(0o755)
+            for status in (0, 1, 2):
+                with self.subTest(producer_exit=status):
+                    runner_temp = base / f"run-{status}"
+                    runner_temp.mkdir()
+                    output = runner_temp / "github-output"
+                    artifact = runner_temp / "aift-forge-verification.json"
+                    if status == 2:
+                        artifact.write_text("STALE", encoding="utf-8")
+                    env = {
+                        **os.environ,
+                        "PATH": f"{fake_bin}{os.pathsep}{os.environ.get('PATH', '')}",
+                        "RUNNER_TEMP": str(runner_temp),
+                        "GITHUB_OUTPUT": str(output),
+                        "FORGE_FAKE_STATUS": str(status),
+                    }
+                    result = subprocess.run(
+                        ["bash", "-c", step["run"]], cwd=SCRIPT.parents[1],
+                        env=env, capture_output=True, text=True, check=False,
+                    )
+                    self.assertEqual(result.returncode, status, result.stderr)
+                    published = output.read_text(encoding="utf-8") if output.exists() else ""
+                    self.assertEqual(published, "record_published=true\\n"
+                                     if status in (0, 1) else "")
+                    self.assertEqual(artifact.read_text(encoding="utf-8"),
+                                     "STALE" if status == 2 else "fixture\\n")
 
     def test_workflow_upload_requires_published_evidence(self):
         # A preexisting or concurrently created path must not be uploaded if
