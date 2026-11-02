@@ -167,6 +167,20 @@ class ForgeVerificationTests(unittest.TestCase):
         self.assertFalse(self.output.exists())
 
 
+    def test_oversized_github_run_id_fails_closed(self):
+        env = {"GITHUB_ACTIONS": "true", "GITHUB_RUN_ATTEMPT": "1",
+               "GITHUB_SHA": self.sha, "GITHUB_REPOSITORY": producer.REPOSITORY}
+        for valid in ("1", "9" * 20):
+            with self.subTest(valid_length=len(valid)):
+                self.assertEqual(producer.generate(self.root, self.output,
+                                                   {**env, "GITHUB_RUN_ID": valid}), 0)
+                self.output.unlink()
+        for invalid in ("9" * 21, "1" * 5000):
+            with self.subTest(invalid_length=len(invalid)):
+                self.assertEqual(producer.generate(self.root, self.output,
+                                                   {**env, "GITHUB_RUN_ID": invalid}), 2)
+                self.assertFalse(self.output.exists())
+
     def test_actions_attempt_missing_or_invalid_fails_closed(self):
         env = {"GITHUB_ACTIONS": "true", "GITHUB_RUN_ID": "12345",
                "GITHUB_SHA": self.sha, "GITHUB_REPOSITORY": producer.REPOSITORY}
