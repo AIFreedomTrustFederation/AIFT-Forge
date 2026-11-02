@@ -49,7 +49,7 @@ def worktree_status(root: Path) -> int:
         return 127
     if flags.returncode:
         return flags.returncode
-    return 1 if any(entry and entry[:1] != b"H" for entry in flags.stdout.split(b"\\0")) else 0
+    return 1 if any(entry and entry[:1] != b"H" for entry in flags.stdout.split(b"\0")) else 0
 
 
 def generate(root: Path, output: Path, env: dict[str, str] | None = None) -> int:

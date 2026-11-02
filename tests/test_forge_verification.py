@@ -71,6 +71,18 @@ class ForgeVerificationTests(unittest.TestCase):
         self.assertEqual(record["checks"][1]["status"], "failed")
         self.assertEqual(record["checks"][2]["status"], "passed")
 
+    def test_hidden_index_flag_detected_after_ordinary_tracked_file(self):
+        (self.root / "aaa.txt").write_text("ordinary\\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(self.root), "add", "aaa.txt"], check=True)
+        subprocess.run(["git", "-C", str(self.root), "commit", "-qm", "add first file"], check=True)
+        subprocess.run(["git", "-C", str(self.root), "update-index",
+                        "--assume-unchanged", "tracked.txt"], check=True)
+        (self.root / "tracked.txt").write_text("tampered\\n", encoding="utf-8")
+        self.assertEqual(subprocess.check_output(
+            ["git", "-C", str(self.root), "status", "--porcelain=v1"], text=True), "")
+        self.assertEqual(producer.generate(self.root, self.output, {}), 1)
+        self.assertEqual(json.loads(self.output.read_text())["checks"][1]["status"], "failed")
+
     def test_skip_worktree_index_flag_cannot_claim_clean_checkout(self):
         subprocess.run(["git", "-C", str(self.root), "update-index",
                         "--skip-worktree", "tracked.txt"], check=True)
