@@ -72,12 +72,21 @@ def generate(root: Path, output: Path, env: dict[str, str] | None = None) -> int
         before = worktree_status(root)
         qa_code = invoke(["npm", "run", "qa:local"], root)
         after = worktree_status(root)
+        # A clean worktree does not prove the QA command left HEAD unchanged.
+        final_head = subprocess.run(
+            ["git", "rev-parse", "--verify", "HEAD"], cwd=root,
+            capture_output=True, text=True, check=False,
+        )
+        identity_code = 0 if (final_head.returncode == 0 and
+                              final_head.stdout.strip() == commit) else 1
         tree_code = before or after
         checks = [
             {"id": "forge_qa", "command": "npm run qa:local",
              "status": "passed" if qa_code == 0 else "failed", "exit_code": qa_code},
             {"id": "worktree", "command": "git status --porcelain=v1 --untracked-files=all (before and after)",
              "status": "passed" if tree_code == 0 else "failed", "exit_code": tree_code},
+            {"id": "checkout_identity", "command": "git rev-parse --verify HEAD (before and after QA)",
+             "status": "passed" if identity_code == 0 else "failed", "exit_code": identity_code},
         ]
         record = {
             "schema": "aift.verification.v1",

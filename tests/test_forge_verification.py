@@ -37,7 +37,7 @@ class ForgeVerificationTests(unittest.TestCase):
         self.assertEqual(record["repository"], producer.REPOSITORY)
         self.assertEqual(record["commit_sha"], self.sha)
         self.assertEqual(record["overall_status"], "passed")
-        self.assertEqual([c["id"] for c in record["checks"]], ["forge_qa", "worktree"])
+        self.assertEqual([c["id"] for c in record["checks"]], ["forge_qa", "worktree", "checkout_identity"])
         self.assertEqual(record["security"]["status"], "not_checked")
         self.assertEqual(record["dependencies"]["status"], "not_checked")
         self.assertEqual(record["deployment"]["status"], "not_applicable")
@@ -53,6 +53,22 @@ class ForgeVerificationTests(unittest.TestCase):
         (self.root / "unexpected.txt").write_text("untracked\n")
         self.assertEqual(producer.generate(self.root, self.output, {}), 1)
         self.assertEqual(json.loads(self.output.read_text())["checks"][1]["status"], "failed")
+
+    def test_clean_worktree_cannot_hide_checkout_head_drift(self):
+        def advance_head(command, root):
+            (root / "tracked.txt").write_text("new commit\\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "tracked.txt"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "advance HEAD"], check=True)
+            return 0
+
+        producer.invoke = advance_head
+        self.assertEqual(producer.generate(self.root, self.output, {}), 1)
+        record = json.loads(self.output.read_text())
+        self.assertEqual(record["commit_sha"], self.sha)
+        self.assertEqual(record["checks"][0]["status"], "passed")
+        self.assertEqual(record["checks"][1]["status"], "passed")
+        self.assertEqual(record["checks"][2]["status"], "failed")
+        self.assertEqual(record["overall_status"], "failed")
 
     def test_checkout_sha_mismatch_fails_closed(self):
         self.assertEqual(producer.generate(self.root, self.output, {"GITHUB_SHA": "0" * 40}), 2)
