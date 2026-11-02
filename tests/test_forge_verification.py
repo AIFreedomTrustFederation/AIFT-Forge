@@ -246,6 +246,18 @@ class ForgeVerificationTests(unittest.TestCase):
         self.assertEqual(self.output.read_text(encoding="utf-8"), "CONCURRENT_WRITER")
         self.assertEqual(list(self.output.parent.glob(f".{self.output.name}.*.tmp")), [])
 
+    def test_workflow_upload_requires_published_evidence(self):
+        # A preexisting or concurrently created path must not be uploaded if
+        # the producer failed before completing its own publication.
+        workflow = json.loads((SCRIPT.parents[1] / ".github/workflows/qa.yml").read_text(encoding="utf-8"))
+        steps = workflow["jobs"]["qa"]["steps"]
+        producer_step = next(step for step in steps if step["name"] == "Run local QA gate and emit commit-bound evidence")
+        upload_step = next(step for step in steps if step["name"] == "Upload Forge verification evidence")
+        self.assertEqual(producer_step["id"], "forge_verification")
+        self.assertIn('if [ "$status" -eq 0 ] || [ "$status" -eq 1 ]; then', producer_step["run"])
+        self.assertIn("record_published=true", producer_step["run"])
+        self.assertIn("steps.forge_verification.outputs.record_published == 'true'", upload_step["if"])
+
     def test_atomic_publish_failure_leaves_no_partial_uploadable_record(self):
         with mock.patch.object(producer.os, "link", side_effect=OSError("simulated publish failure")):
             self.assertEqual(producer.generate(self.root, self.output, {}), 2)
