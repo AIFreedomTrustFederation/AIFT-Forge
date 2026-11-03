@@ -344,6 +344,8 @@ class ForgeVerificationTests(unittest.TestCase):
         self.assertIn('if [ "$status" -eq 0 ] || [ "$status" -eq 1 ]; then', producer_step["run"])
         self.assertIn("record_published=true", producer_step["run"])
         self.assertIn("steps.forge_verification.outputs.record_published == 'true'", upload_step["if"])
+        # Once publication is asserted, a missing artifact must fail the job.
+        self.assertEqual(upload_step["with"]["if-no-files-found"], "error")
 
     def test_atomic_publish_failure_leaves_no_partial_uploadable_record(self):
         with mock.patch.object(producer.os, "link", side_effect=OSError("simulated publish failure")):
