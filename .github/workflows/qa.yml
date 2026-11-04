@@ -44,8 +44,24 @@
           "run": "npm ci"
         },
         {
-          "name": "Run local QA gate",
-          "run": "npm run qa:local"
+          "name": "Test Forge evidence producer contract",
+          "run": "python3 -B -m unittest discover -s tests -p 'test_forge_verification.py' -v"
+        },
+        {
+          "name": "Run local QA gate and emit commit-bound evidence",
+          "run": "set +e\npython3 -B scripts/run_forge_verification.py --output \"$RUNNER_TEMP/aift-forge-verification.json\"\nstatus=$?\nif [ \"$status\" -eq 0 ] || [ \"$status\" -eq 1 ]; then\n  echo \"record_published=true\" >> \"$GITHUB_OUTPUT\"\nfi\nexit \"$status\"",
+          "id": "forge_verification"
+        },
+        {
+          "name": "Upload Forge verification evidence",
+          "if": "${{ always() && steps.forge_verification.outputs.record_published == 'true' }}",
+          "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "with": {
+            "name": "aift-forge-verification",
+            "path": "${{ runner.temp }}/aift-forge-verification.json",
+            "if-no-files-found": "error",
+            "retention-days": 7
+          }
         },
         {
           "name": "Verify clean checkout",
