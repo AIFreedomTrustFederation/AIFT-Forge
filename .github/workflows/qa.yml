@@ -64,8 +64,8 @@
           }
         },
         {
-          "name": "Verify clean checkout",
-          "run": "test -z \"$(git status --porcelain)\""
+          "name": "Verify checkout commit binding",
+          "run": "test -z \"$(git status --porcelain)\" && test \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\""
         }
       ]
     }

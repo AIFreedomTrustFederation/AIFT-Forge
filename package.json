@@ -7,7 +7,7 @@
   "scripts": {
     "qa:local": "npm run lint && npm run typecheck && npm run test && npm run build",
     "lint": "eslint .",
-    "test": "vitest run --passWithNoTests && node --test tests/provider-registry.check.mjs",
+    "test": "vitest run --passWithNoTests && node --test tests/provider-registry.check.mjs && node --test tests/ci-commit-binding.check.mjs",
     "typecheck": "node scripts/aift-typecheck-check.mjs",
     "build": "node scripts/aift-build-check.mjs",
     "deps:doctor": "node scripts/aift-termux-doctor.mjs",
