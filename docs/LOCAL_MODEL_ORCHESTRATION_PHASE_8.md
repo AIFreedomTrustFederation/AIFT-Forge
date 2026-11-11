@@ -79,6 +79,10 @@ Show model runs:
 
     aift-forge model runs
 
+## Model-to-provider execution evidence boundary
+
+The [model orchestrator](../packages/forge-core/src/models/orchestrator.mjs) selects a model record with a `providerId`, but `runModelRoute` sends only the model name and request to the [provider router](../packages/forge-core/src/providers/router.mjs). That router independently chooses the first reachable provider advertising the requested capability, without binding the request to the selected model record's `providerId`. Consequently, `aift-forge model select` proves only metadata selection; a successful `model run` and its recorded `providerId` do not independently prove which provider actually served the model. Verify the model-to-provider binding and actual inference response separately, especially with multiple configured providers. This is a source-level limitation, not an observed misrouting incident.
+
 ## Governance
 
 Local model orchestration is:
