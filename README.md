@@ -175,3 +175,9 @@ This is why repository metadata is part of the Forge's living grammar. `aift.rep
 ### The Return of the Word
 
 In the Forge, the Word returns as an interface that still remembers why it exists. Doctrine becomes a package, package becomes capability, capability becomes verified use, and verified use returns to the human builder without concealing what was inherited, what was changed, or who owns the next decision. That is how technical reuse remains covenant rather than conformity.
+
+## Engineering upgrade preparation
+
+See the [staged upgrade plan](docs/UPGRADE-PREPARATION.md) for the reviewed
+baseline, repository-specific verification gates, integration sequence and
+acceptance criteria. This plan does not certify current readiness.
