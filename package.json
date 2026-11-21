@@ -8,7 +8,7 @@
     "qa:local": "npm run lint && npm run typecheck && npm run test && npm run build",
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests && node --test tests/provider-registry.check.mjs && node --test tests/ci-commit-binding.check.mjs",
-    "typecheck": "node scripts/aift-typecheck-check.mjs",
+    "typecheck": "tsc --noEmit -p apps/product-web/tsconfig.package-store.json",
     "build": "node scripts/aift-build-check.mjs",
     "deps:doctor": "node scripts/aift-termux-doctor.mjs",
     "provider:smoke": "node scripts/aift-provider-registry-smoke.mjs",
@@ -16,6 +16,7 @@
   },
   "devDependencies": {
     "eslint": "^9.0.0",
+    "typescript": "5.9.3",
     "vitest": "^2.0.0"
   },
   "aiftOriginalPackagePreservedIn": ".forge/platform-backups/",
