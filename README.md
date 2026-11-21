@@ -94,7 +94,7 @@ npm run build
 
 The root `typecheck` and `build` commands currently invoke [`scripts/aift-typecheck-check.mjs`](scripts/aift-typecheck-check.mjs) and [`scripts/aift-build-check.mjs`](scripts/aift-build-check.mjs). **Both scripts only print a success message and exit with status 0; neither runs a TypeScript compiler or produces build artifacts.** Consequently, `npm run qa:local` executes the configured lint and Vitest commands but **must not be described as proof of successful typechecking or compilation**. The test command retains Vitest's `--passWithNoTests` for its existing suite, but now also runs `node --test tests/provider-registry.check.mjs` for mandatory provider-registry filesystem regression coverage. Inspect both test runners' results; a successful QA gate still does not establish full TypeScript compilation or application build artifacts.
 
-**Federation manifest versus hosted QA:** [`aift.repo.json`](aift.repo.json) advertises lint, typecheck, test, and build commands with `--if-present`. All four scripts currently exist in [`package.json`](package.json), but that manifest command neither installs locked dependencies nor checks checkout cleanliness. The [hosted Local QA workflow](.github/workflows/qa.yml) separately checks the inert-install policy, installs dependencies, runs the QA gate, and checks for a clean checkout. If a script is removed, `--if-present` can silently skip it. A successful manifest command is therefore not evidence that the full hosted QA workflow ran.
+**Federation manifest versus hosted QA:** [`aift.repo.json`](aift.repo.json) delegates verification to mandatory `npm run qa:local`, the same lint/typecheck/test/build chain declared in [`package.json`](package.json). A missing stage now fails rather than silently skipping. Provision dependencies first with `npm ci --ignore-scripts`. This command does not install dependencies, certify a clean checkout, exercise native installers, or replace the [hosted Local QA workflow](.github/workflows/qa.yml). See the [command contract](docs/COMMAND-CONTRACT.md).
 
 ### Self-improvement patch validation boundary
 
@@ -181,3 +181,5 @@ In the Forge, the Word returns as an interface that still remembers why it exist
 See the [staged upgrade plan](docs/UPGRADE-PREPARATION.md) for the reviewed
 baseline, repository-specific verification gates, integration sequence and
 acceptance criteria. This plan does not certify current readiness.
+
+The [engineering command contract](docs/COMMAND-CONTRACT.md) records prerequisites, side effects, failure meanings and verification limits.

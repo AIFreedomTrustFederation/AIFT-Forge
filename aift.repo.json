@@ -12,7 +12,7 @@
   "commands": {
     "status": "git status --short",
     "pull": "git pull --ff-only",
-    "verify": "npm run lint --if-present && npm run typecheck --if-present && npm run test --if-present && npm run build --if-present"
+    "verify": "npm run qa:local"
   },
   "standards": {
     "localFirst": true,
