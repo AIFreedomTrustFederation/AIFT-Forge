@@ -1,5 +1,6 @@
 name: Embodied Frontier E1 mock-only Python verification
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - 'experiments/embodied-frontier/e1/**'
@@ -25,7 +26,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Verify exact PR head and run E1/E2 tests
+      - name: Verify exact checkout and run E1/E2 tests
         shell: bash
         env:
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
