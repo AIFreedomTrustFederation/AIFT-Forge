@@ -1,0 +1,31 @@
+name: Embodied Frontier E1 mock-only Python verification
+on:
+  pull_request:
+    paths:
+      - 'experiments/embodied-frontier/e1/**'
+      - '.github/workflows/embodied-frontier-e1.yml'
+  push:
+    branches:
+      - 'frontier/e1-mock-safety-pipeline-20261122'
+    paths:
+      - 'experiments/embodied-frontier/e1/**'
+      - '.github/workflows/embodied-frontier-e1.yml'
+permissions:
+  contents: read
+jobs:
+  mock-only-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify exact checkout and run all E1 tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          python --version
+          cd experiments/embodied-frontier/e1
+          python -m unittest discover -p 'test_*.py' -v
