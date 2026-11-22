@@ -1,12 +1,13 @@
 name: Embodied Frontier E1 mock-only Python verification
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - 'experiments/embodied-frontier/e1/**'
       - '.github/workflows/embodied-frontier-e1.yml'
   push:
     branches:
-      - 'frontier/e1-mock-safety-pipeline-20261122'
+      - main
     paths:
       - 'experiments/embodied-frontier/e1/**'
       - '.github/workflows/embodied-frontier-e1.yml'
@@ -21,11 +22,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Verify exact checkout and run all E1 tests
+      - name: Record checkout SHA and run all E1 mock-only tests
         shell: bash
         run: |
           set -euo pipefail
-          git rev-parse HEAD
+          echo "checkout_sha=$(git rev-parse HEAD)"
           python --version
           cd experiments/embodied-frontier/e1
           python -m unittest discover -p 'test_*.py' -v
