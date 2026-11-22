@@ -183,3 +183,8 @@ baseline, repository-specific verification gates, integration sequence and
 acceptance criteria. This plan does not certify current readiness.
 
 The [engineering command contract](docs/COMMAND-CONTRACT.md) records prerequisites, side effects, failure meanings and verification limits.
+
+
+## Universal AIFT OS SDK Alignment (proposed)
+
+[Cross-platform application manifests, agent/capability contracts and test gates](docs/aift-universal-os-alignment.md) describe Forge's proposed role in the native, hosted and embodied AIFT platform. The architecture is under review in [AIFT-OS PR #92](https://github.com/AIFreedomTrustFederation/AIFT-OS/pull/92); these are not claims of shipping hardware or certified robot support.
