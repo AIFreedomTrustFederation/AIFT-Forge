@@ -28,6 +28,10 @@ def run(frame: Frame, request: Request) -> Result:
     """Perception -> proposed plan -> deterministic gate -> mock action."""
     def stop(reason):
         return Result(0.0, reason, False)
+    if type(frame) is not Frame:
+        return stop('invalid_frame')
+    if type(request) is not Request:
+        return stop('invalid_request')
     if request.estop is not False and request.estop is not True:
         return stop('invalid_estop')
     if request.estop:

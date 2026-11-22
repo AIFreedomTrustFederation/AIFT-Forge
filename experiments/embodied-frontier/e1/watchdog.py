@@ -37,9 +37,18 @@ class MockWatchdog:
         state = self.tick(now_ms)
         if self.latched_stop:
             return state
-        if type(result.accepted) is not bool or not result.accepted:
+        try:
+            accepted = result.accepted
+        except (AttributeError, TypeError):
+            return self._stop('invalid_result')
+        if type(accepted) is not bool:
+            return self._stop('invalid_result')
+        if not accepted:
             return self._stop('upstream_rejected')
-        speed = result.simulated_speed_mps
+        try:
+            speed = result.simulated_speed_mps
+        except (AttributeError, TypeError):
+            return self._stop('invalid_result')
         if type(speed) not in (float, int) or not 0 <= speed <= 0.25:
             return self._stop('invalid_speed')
         self.last_command_ms = now_ms
