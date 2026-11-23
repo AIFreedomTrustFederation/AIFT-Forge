@@ -188,3 +188,9 @@ The [engineering command contract](docs/COMMAND-CONTRACT.md) records prerequisit
 ## Universal AIFT OS SDK Alignment (proposed)
 
 [Cross-platform application manifests, agent/capability contracts and test gates](docs/aift-universal-os-alignment.md) describe Forge's proposed role in the native, hosted and embodied AIFT platform. The architecture is under review in [AIFT-OS PR #92](https://github.com/AIFreedomTrustFederation/AIFT-OS/pull/92); these are not claims of shipping hardware or certified robot support.
+
+## Federation-wide continuity and development policy
+
+The [Federation Prime Directive](FEDERATION-PRIME-DIRECTIVE.md) prioritizes perpetual continuity, integrity, sovereignty, and recoverability. Current architecture, workflows, capabilities, and deployment descriptions are provisional development-stage decisions, not permanent limitations. Do not claim unverified capabilities are operational.
+
+Prefer direct commits to the configured default branch for reversible, low-risk work when protections permit. Where PRs are required, merge only after exact-head checks, required reviews, mergeability, and recovery gates pass. Eligible low-risk PRs may auto-merge. A default-branch commit is not authorization for production deployment or destructive changes. Use the existing AIFT Federation Automation GitHub App as the preferred shared automation identity.
