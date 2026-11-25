@@ -9,7 +9,7 @@
     "build:win": "electron-builder --win nsis portable"
   },
   "dependencies": {
-    "electron": "^42.4.1"
+    "electron": "^45.4.1"
   },
   "devDependencies": {
     "electron-builder": "^26.0.0"
