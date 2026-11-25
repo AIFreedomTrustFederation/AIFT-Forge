@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - main
+      - frontier/e2-mock-safety-hardening-20261122
     paths:
       - 'experiments/embodied-frontier/e1/**'
       - '.github/workflows/embodied-frontier-e1.yml'
@@ -18,15 +19,22 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Record checkout SHA and run all E1 mock-only tests
+      - name: Verify exact checkout and run E1/E2 tests
         shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          echo "checkout_sha=$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain)"
+          printf 'Verified exact checkout: %s\n' "$EXPECTED_HEAD_SHA"
           python --version
           cd experiments/embodied-frontier/e1
           python -m unittest discover -p 'test_*.py' -v

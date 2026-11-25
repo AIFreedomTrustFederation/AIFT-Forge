@@ -11,6 +11,8 @@ class Envelope:
 
 class MockTransport:
     def __init__(self, max_age_ms=250):
+        if type(max_age_ms) is not int or max_age_ms <= 0:
+            raise ValueError('invalid max age')
         self.max_age_ms = max_age_ms
         self.last_sequence = -1
         self.last_now_ms = -1
